@@ -173,3 +173,53 @@ def test_mcnemar_size_under_null():
         a[swap] = rng.random(swap.sum()) < 0.5
         rejections += mcnemar_exact(a, b).p_value < 0.05
     assert rejections / reps <= 0.06
+
+
+def test_sign_flip_pins_tie_rule_and_plus_one():
+    # six items favour one side and 114 are ties: only the patterns that keep
+    # all six signs equal reach the observed mean, so p is 2 / 64
+    d = [1.0] * 6 + [0.0] * 114
+    assert sign_flip_test(d, n_perm=20000, seed=3) == pytest.approx(2 / 64, abs=0.004)
+    # the observed statistic counts as one of the draws: (0 + 1) / (9 + 1)
+    assert sign_flip_test([1.0] * 50, n_perm=9) == pytest.approx(0.1)
+    # all ties: every draw equals the observed zero, p is exactly 1
+    assert sign_flip_test([0.0] * 10, n_perm=99) == 1.0
+
+
+def test_cluster_sign_flip_is_symmetric_in_sign():
+    rng = np.random.default_rng(4)
+    clusters = np.repeat(np.arange(8), 6)
+    d = rng.normal(-0.3, 1, clusters.size)
+    assert cluster_sign_flip_test(d, clusters) < 0.5
+    assert cluster_sign_flip_test(-d, clusters) == cluster_sign_flip_test(d, clusters)
+    # negative cluster sums, worked by hand: as in the all-positive case, 2 / 16
+    assert cluster_sign_flip_test([-1, -1, -1, -1], ["a", "b", "c", "d"]) == pytest.approx(2 / 16)
+    big = np.repeat(np.arange(20), 3)
+    e = rng.normal(-0.3, 1, big.size)
+    assert cluster_sign_flip_test(-e, big, n_perm=500) == cluster_sign_flip_test(e, big, n_perm=500)
+
+
+def test_cluster_sign_flip_random_branch_counts_ties():
+    # 17 clusters, two with sum 1 and the rest 0: |total| is 0 or 2, so half
+    # of all sign patterns tie the observed 2 and the exact p is 0.5
+    clusters = np.arange(17)
+    d = np.zeros(17)
+    d[:2] = 1.0
+    exact = cluster_sign_flip_test(d, clusters, max_exact=17)
+    assert exact == pytest.approx(0.5)
+    approx = cluster_sign_flip_test(d, clusters, n_perm=4000, seed=2)
+    assert approx == pytest.approx(exact, abs=0.03)
+
+
+def test_cluster_sign_flip_enumerates_at_max_exact():
+    # four clusters all on one side: exact p is 2 / 16, which no random draw
+    # with n_perm = 9 can give ((count + 1) / 10 is a multiple of 0.1)
+    p = cluster_sign_flip_test([1, 1, 1, 1], ["a", "b", "c", "d"], max_exact=4, n_perm=9)
+    assert p == pytest.approx(2 / 16)
+
+
+def test_cluster_sign_flip_random_branch_counts_the_observed_draw():
+    # 30 clusters all on one side: no random draw of 9 reaches the total,
+    # so p is (0 + 1) / (9 + 1)
+    p = cluster_sign_flip_test(np.ones(30), np.arange(30), n_perm=9, seed=0)
+    assert p == pytest.approx(0.1)
