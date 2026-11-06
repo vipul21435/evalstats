@@ -448,6 +448,9 @@ python -c "import json,sys,collections;c=collections.Counter(json.loads(l)['item
 - [judgebias](https://github.com/vipul21435/judgebias): audit an LLM judge for position, length and self-preference bias before using its scores.
 - [rubricops](https://github.com/vipul21435/rubricops): versioned rubrics and inter-rater agreement.
 - [prefpairs](https://github.com/vipul21435/prefpairs): pairwise preference data, Bradley-Terry and Elo.
+- [patchsim](https://github.com/vipul21435/patchsim): how far textual similarity to the gold patch goes as a proxy for correctness, checked against test outcomes.
+- [contamscan](https://github.com/vipul21435/contamscan): how much of an evaluation set appears in a training corpus, with published n-gram overlap methods.
+- [awesome-coding-agent-evals](https://github.com/vipul21435/awesome-coding-agent-evals): a curated list of benchmarks, harnesses, datasets and papers for coding agents, each checked at its source.
 
 ## Licence
 
