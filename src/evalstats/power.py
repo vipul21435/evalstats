@@ -134,6 +134,10 @@ def plan_from_scores(
     count and the power on the observed items use ``max(1, design_effect)``,
     so clustering never makes the plan more optimistic than independent
     items would.
+
+    Raises ``ValueError`` when no plan follows from the data: the two
+    models never disagree, the per-item differences do not vary, or
+    ``delta`` exceeds the observed discordance.
     """
     a = finite_array(a)
     b = finite_array(b)
@@ -143,10 +147,19 @@ def plan_from_scores(
     binary = set(np.unique(a)) <= {0.0, 1.0} and set(np.unique(b)) <= {0.0, 1.0}
     sd = float(d.std(ddof=1))
     disc = float(np.mean(d != 0)) if binary else None
-    if binary and disc is not None and disc > 0:
+    if disc is not None:
+        if disc == 0:
+            raise ValueError(
+                "the two models agree on every shared item; the observed discordance "
+                "cannot plan a sample size, pass --discordance"
+            )
         n_plain = items_for_discordance(delta, disc, alpha=alpha, power=power)
     else:
-        n_plain = items_for_sd(delta, sd, alpha=alpha, power=power) if sd > 0 else 0
+        if sd <= 1e-12 * max(1.0, float(np.abs(d).max())):
+            raise ValueError(
+                "the per-item differences do not vary; their spread cannot plan a sample size"
+            )
+        n_plain = items_for_sd(delta, sd, alpha=alpha, power=power)
     deff = 1.0
     if clusters is not None:
         se_plain = standard_error(d)
@@ -157,6 +170,6 @@ def plan_from_scores(
     n_cl = int(math.ceil(n_plain * inflation))
     n_obs = int(a.size)
     sd_eff = sd * math.sqrt(inflation)
-    pw = power_for_items(n_obs, delta, sd_eff, alpha=alpha) if sd_eff > 0 else None
-    mdd = detectable_difference(n_obs, sd_eff, alpha=alpha, power=power) if sd_eff > 0 else None
+    pw = power_for_items(n_obs, delta, sd_eff, alpha=alpha)
+    mdd = detectable_difference(n_obs, sd_eff, alpha=alpha, power=power)
     return PowerPlan(delta, alpha, power, disc, sd, deff, n_plain, n_cl, n_obs, pw, mdd)

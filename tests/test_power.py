@@ -100,9 +100,13 @@ def test_design_effect_below_one_does_not_shrink_the_plan():
     assert plan.power_at_observed == pytest.approx(plain.power_at_observed)
 
 
-def test_plan_identical_scores():
-    plan = plan_from_scores([1, 0, 1, 0], [1, 0, 1, 0], 0.1)
-    assert plan.n_items == 0 and plan.power_at_observed is None
+def test_plan_is_undefined_when_the_models_never_disagree():
+    # zero discordance would give "0 items", which reads as "no data needed"
+    with pytest.raises(ValueError, match="agree on every shared item"):
+        plan_from_scores([1, 0, 1, 0], [1, 0, 1, 0], 0.1)
+    # real scores whose differences do not vary give no spread to plan from
+    with pytest.raises(ValueError, match="do not vary"):
+        plan_from_scores([0.5, 0.2, 0.9], [0.4, 0.1, 0.8], 0.1)
 
 
 def test_planned_size_reaches_target_power_in_simulation():

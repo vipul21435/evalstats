@@ -1,5 +1,7 @@
 import json
 
+import numpy as np
+
 from evalstats.report import emit, markdown_table, p_value, pct, to_json
 
 
@@ -73,3 +75,29 @@ def test_full_report_skips_pairs_with_too_little_discordance():
 
     rep = full_report(_models(), source="toy.jsonl", delta=0.9, n_boot=100)
     assert rep["plans"] == []
+
+
+def test_full_report_skips_pairs_that_never_disagree():
+    from evalstats.io import ModelScores
+    from evalstats.report import full_report, render_markdown
+
+    items = [f"i{k}" for k in range(6)]
+    same = np.array([1.0, 0.0, 1.0, 1.0, 0.0, 1.0])
+    models = {
+        "x": ModelScores("x", items, same, None),
+        "y": ModelScores("y", items, same.copy(), None),
+    }
+    rep = full_report(models, source="same.jsonl", delta=0.03, n_boot=50, n_perm=50)
+    assert rep["plans"] == []
+    assert "agree on every item" in render_markdown(rep)
+
+
+def test_cli_power_on_identical_models_is_an_error(tmp_path, capsys):
+    from evalstats.cli import main
+
+    p = tmp_path / "same.csv"
+    p.write_text("item,model,score\nq1,a,1\nq2,a,0\nq3,a,1\nq1,b,1\nq2,b,0\nq3,b,1\n")
+    assert main(["power", str(p), "--a", "a", "--b", "b"]) == 2
+    err = capsys.readouterr().err
+    assert "agree on every shared item" in err and "--discordance" in err
+    assert ": 0 (independent items)" not in err

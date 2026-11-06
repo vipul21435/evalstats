@@ -130,7 +130,8 @@ def neighbour_plans(
         try:
             plan = plan_from_scores(sa, sb, delta, clusters=clusters, alpha=lb.alpha, power=power)
         except ValueError:
-            # delta larger than the observed discordance: no finite plan
+            # delta larger than the observed discordance, or two models that
+            # never disagree: the data give no finite plan
             continue
         out.append({"a": a, "b": b, **plan.to_dict()})
     return out
@@ -202,7 +203,9 @@ def render_markdown(rep: dict) -> str:
     lines += [
         "",
         f"Power target {rep['power']:g}, two-sided alpha {lb.alpha:g}. A pair is left out when "
-        "the difference exceeds the share of items the two models disagree on.",
+        "the difference exceeds the share of items the two models disagree on, or when the "
+        "two models agree on every item (or their differences do not vary), so that the "
+        "data give no plan.",
     ]
     return "\n".join(lines)
 
