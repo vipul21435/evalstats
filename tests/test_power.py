@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 from scipy import stats
 
+from evalstats.paired import mcnemar_exact
 from evalstats.power import (
     detectable_difference,
     items_for_discordance,
@@ -88,3 +89,21 @@ def test_plan_with_clusters_inflates_by_design_effect():
 def test_plan_identical_scores():
     plan = plan_from_scores([1, 0, 1, 0], [1, 0, 1, 0], 0.1)
     assert plan.n_items == 0 and plan.power_at_observed is None
+
+
+def test_planned_size_reaches_target_power_in_simulation():
+    """Seeded simulation: benchmarks of the planned size, scored by two models
+    that disagree on 12 % of items and differ by 3 points, reject the null
+    with the exact McNemar test close to 80 % of the time. The exact test is
+    slightly conservative, so the empirical power sits a little under target."""
+    psi, delta = 0.12, 0.03
+    n = items_for_discordance(delta, psi)
+    rng = np.random.default_rng(0)
+    probs = [(psi + delta) / 2, (psi - delta) / 2, 1 - psi]
+    reps, rejections = 600, 0
+    for _ in range(reps):
+        only_a, only_b, _ = rng.multinomial(n, probs)
+        a = np.r_[np.ones(only_a), np.zeros(only_b)]
+        b = np.r_[np.zeros(only_a), np.ones(only_b)]
+        rejections += mcnemar_exact(a, b).p_value < 0.05
+    assert 0.72 < rejections / reps < 0.86
