@@ -125,3 +125,33 @@ def test_planned_size_reaches_target_power_in_simulation():
         b = np.r_[np.zeros(only_a), np.ones(only_b)]
         rejections += mcnemar_exact(a, b).p_value < 0.05
     assert 0.72 < rejections / reps < 0.86
+
+
+def test_design_effect_and_clustered_power_by_hand():
+    # binary scores with a shared per-cluster effect: an intraclass
+    # correlation well above zero, so the design effect is clearly above 1
+    rng = np.random.default_rng(12)
+    g, m = 25, 16
+    clusters = np.repeat(np.arange(g), m)
+    p_a = np.clip(0.5 + rng.normal(0, 0.25, g), 0.05, 0.95)[clusters]
+    a = (rng.random(g * m) < p_a).astype(float)
+    b = (rng.random(g * m) < 0.45).astype(float)
+    d = a - b
+    n = d.size
+    se_plain = d.std(ddof=1) / math.sqrt(n)
+    resid_sums = np.array([np.sum(d[clusters == k] - d.mean()) for k in range(g)])
+    se_cl = math.sqrt(g / (g - 1) * np.sum(resid_sums**2) / n**2)
+    deff = (se_cl / se_plain) ** 2
+    assert deff > 1.3
+    plan = plan_from_scores(a, b, 0.05, clusters=clusters)
+    assert plan.design_effect == pytest.approx(deff, rel=1e-12)
+    assert plan.n_items_clustered == math.ceil(plan.n_items * deff)
+    sd = d.std(ddof=1)
+    assert plan.power_at_observed == pytest.approx(
+        power_for_items(n, 0.05, sd * math.sqrt(deff)), rel=1e-12
+    )
+    assert plan.detectable_at_observed == pytest.approx(
+        detectable_difference(n, sd * math.sqrt(deff)), rel=1e-12
+    )
+    plain = plan_from_scores(a, b, 0.05)
+    assert plan.power_at_observed < plain.power_at_observed
