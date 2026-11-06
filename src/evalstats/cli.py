@@ -2,7 +2,8 @@
 
 Commands: ``summary`` (one interval per model), ``compare`` (two models on
 shared items), ``leaderboard`` (every model and every pair with corrected
-p-values), ``power`` (items needed to detect a difference) and ``passk``.
+p-values), ``report`` (all of that plus power plans in one document),
+``power`` (items needed to detect a difference) and ``passk``.
 Every command prints Markdown, or JSON with ``--json``; ``--out`` writes the
 report to a file instead of stdout.
 """
@@ -12,6 +13,7 @@ from __future__ import annotations
 import argparse
 import sys
 from collections.abc import Sequence
+from pathlib import Path
 
 from evalstats import __version__
 from evalstats.intervals import mean_interval
@@ -20,7 +22,17 @@ from evalstats.leaderboard import leaderboard
 from evalstats.paired import paired_comparison
 from evalstats.passk import pass_at_k
 from evalstats.power import plan_from_scores
-from evalstats.report import emit, markdown_table, p_value, pct, to_json
+from evalstats.report import (
+    emit,
+    full_report,
+    leaderboard_tables,
+    markdown_table,
+    p_value,
+    pct,
+    render_markdown,
+    report_json,
+    to_json,
+)
 
 
 def _output(p: argparse.ArgumentParser) -> None:
@@ -79,6 +91,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="per-pair test: auto (McNemar for 0/1 scores, else sign-flip), "
         "or cluster (sign flips of whole clusters; needs clusters)",
     )
+
+    rp = sub.add_parser("report", help="intervals, corrected pairs and power plans in one report")
+    _common(rp)
+    rp.add_argument("--n-perm", type=int, default=10000, help="sign-flip permutations")
+    rp.add_argument(
+        "--test",
+        choices=["auto", "mcnemar", "sign-flip", "cluster"],
+        default="auto",
+        help="per-pair test, as in leaderboard",
+    )
+    rp.add_argument(
+        "--delta", type=float, default=0.03, help="difference to plan for (default 0.03)"
+    )
+    rp.add_argument("--power", type=float, default=0.8, help="target power (default 0.8)")
 
     pw = sub.add_parser("power", help="items needed to detect a difference between two models")
     pw.add_argument("path", help="JSONL or CSV results file")
@@ -227,47 +253,26 @@ def cmd_leaderboard(args: argparse.Namespace) -> int:
     if args.json:
         emit(to_json(lb.to_dict()), args.out)
         return 0
-    lvl = int(round(100 * args.level))
-    rank_rows = [
-        [
-            i + 1,
-            name,
-            iv.n,
-            "-" if iv.n_clusters is None else iv.n_clusters,
-            pct(iv.estimate),
-            pct(iv.low),
-            pct(iv.high),
-        ]
-        for i, (name, iv) in enumerate(lb.models)
-    ]
-    ranks = markdown_table(
-        ["rank", "model", "n", "clusters", "mean %", f"{lvl}% low", f"{lvl}% high"], rank_rows
-    )
-    pair_rows = [
-        [
-            r.a,
-            r.b,
-            r.n,
-            pct(r.difference),
-            pct(r.low),
-            pct(r.high),
-            r.test,
-            p_value(r.p_value),
-            p_value(r.p_holm),
-            p_value(r.p_bh),
-        ]
-        for r in lb.pairs
-    ]
-    pairs = markdown_table(
-        ["a", "b", "n", "a - b", f"{lvl}% low", f"{lvl}% high", "test", "p", "p Holm", "p BH"],
-        pair_rows,
-    )
-    top = ", ".join(lb.top_group())
-    text = (
-        f"{ranks}\n\n{pairs}\n\n"
-        f"not separated from the leader at Holm-adjusted alpha {lb.alpha:g}: {top}"
-    )
+    text = leaderboard_tables(lb)
     emit(text, args.out)
+    return 0
+
+
+def cmd_report(args: argparse.Namespace) -> int:
+    models = scores_by_model(read_records(args.path), default_cluster=args.cluster_by_prefix)
+    rep = full_report(
+        models,
+        source=Path(args.path).name,
+        delta=args.delta,
+        power=args.power,
+        level=args.level,
+        method=args.method,
+        n_boot=args.n_boot,
+        n_perm=args.n_perm,
+        seed=args.seed,
+        test=args.test,
+    )
+    emit(report_json(rep) if args.json else render_markdown(rep), args.out)
     return 0
 
 
@@ -327,6 +332,7 @@ COMMANDS = {
     "summary": cmd_summary,
     "compare": cmd_compare,
     "leaderboard": cmd_leaderboard,
+    "report": cmd_report,
     "power": cmd_power,
     "passk": cmd_passk,
 }

@@ -140,3 +140,16 @@ def test_leaderboard_and_power_commands(tmp_path, capsys):
     assert main(["compare", str(p), "--a", "alpha", "--b", "beta", "--out",
                  str(tmp_path / "c.md")]) == 0
     assert "McNemar" in (tmp_path / "c.md").read_text()
+
+
+def test_report_command(tmp_path, capsys):
+    p = tmp_path / "r.jsonl"
+    _write_fixture(p)
+    out = tmp_path / "report.md"
+    args = ["report", str(p), "--cluster-by-prefix", "--n-boot", "100", "--out", str(out)]
+    assert main(args) == 0
+    text = out.read_text()
+    assert "## Intervals and pairwise tests" in text and "r.jsonl" in text
+    assert main(["report", str(p), "--json", "--n-boot", "100", "--test", "sign-flip"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["n_models"] >= 2 and "plans" in data
