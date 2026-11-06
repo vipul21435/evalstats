@@ -1,22 +1,34 @@
 # evalstats
 
+[![ci](https://github.com/vipul21435/evalstats/actions/workflows/ci.yml/badge.svg)](https://github.com/vipul21435/evalstats/actions/workflows/ci.yml)
+
 Error bars, paired comparisons and sample-size planning for model evaluations
 scored per item.
+
+On 12 public SWE-bench Verified submissions (500 issues), the top six, spread
+over 4 points, cannot be separated from the leader after a Holm correction; two
+models 3 points apart disagree on 57 issues, split 36 to 21 (McNemar p = 0.063);
+and a true 3-point difference at that rate of disagreement needs about 992
+issues, twice the benchmark. See [Results](#results-on-real-public-data-when-do-two-different-scores-not-mean-two-different-models) below.
 
 ## Why this is hard
 
 Two models scored on the same benchmark almost never get the same number, and
-the gap is often smaller than the noise in either number. A benchmark is a
-sample of items; the items are not independent (on SWE-bench Verified, 231 of
-the 500 issues come from one repository); and when two models are evaluated on
-the same items, the right question is not whether their two intervals overlap
-but whether the items on which they disagree lean consistently one way. A
-3-point gap can be strong evidence of a real difference on one benchmark and no
-evidence at all on another, depending on how many items the two models disagree
-on and how those items are spread over repositories. Then a leaderboard asks the
-question 66 times at once for 12 models, and some answers come out "significant"
-by chance. evalstats computes the quantities that separate these cases from the
-per-item results alone.
+the gap is often smaller than the noise in either number:
+
+- **Items are not independent.** A benchmark is a sample of items, drawn in
+  groups: on SWE-bench Verified 231 of the 500 issues come from one repository,
+  so the effective sample is smaller than the item count.
+- **The paired question is how the disagreements split.** When two models are
+  scored on the same items, what matters is not whether their two intervals
+  overlap but whether the items on which they disagree lean consistently one
+  way. A 3-point gap can be strong evidence on one benchmark and none on
+  another, depending on how many items the two disagree on.
+- **Many pairs give chance wins.** A leaderboard of 12 models asks the question
+  66 times at once, and some answers come out "significant" by chance.
+
+evalstats computes the quantities that separate these cases from the per-item
+results alone.
 
 ## Install
 
@@ -27,11 +39,13 @@ pip install git+https://github.com/vipul21435/evalstats
 Python 3.10 or newer; the dependencies are numpy and scipy. The plotting example
 also needs matplotlib.
 
-Tests: `uv run pytest -q --cov=evalstats` runs 80 offline tests in about 2 s and
-reports 98 % line coverage (92 % for `intervals.py`, 97 % or more for the other
-modules), measured on 2026-11-06.
-
 ## Quickstart
+
+The example file ships with the repository, so the quickstart runs from a clone:
+
+```
+git clone https://github.com/vipul21435/evalstats && cd evalstats && pip install .
+```
 
 The input is a JSONL or CSV file with one row per item and model: `item`,
 `model`, `score` (0/1 or real) and an optional `cluster` column. With
@@ -40,7 +54,11 @@ The input is a JSONL or CSV file with one row per item and model: `item`,
 repository. For pass@k a row can carry `n_samples` and `n_correct`, or the file
 can hold one row per sample; the other commands score such an item by the mean
 of its rows (the per-item pass@1 estimate) and keep the item as the unit of
-resampling.
+resampling. Files are read as UTF-8 (a byte-order mark is allowed). A score
+that is not a finite number (`nan`, `inf`), a fractional sample count, a CSV
+row with the wrong number of fields or a file with no scored rows is reported
+as an error with the file and line, never skipped. Item ids are compared as
+text, so `1` and `"1"` name the same item.
 
 `examples/make_fixture.py` writes a synthetic file with three models on 120
 items in 8 clusters. Model `b` is model `a` with six extra solves; model `c` is
@@ -195,6 +213,24 @@ Notation: `n` items, scores `x_i`, mean `x̄`, `G` clusters.
 Miller 2024 makes the general case for treating evaluations as experiments with
 standard errors, clustered errors, paired differences and power analysis;
 evalstats implements those pieces for per-item result files.
+
+### Sources
+
+- Jimenez et al. 2023. SWE-bench: Can Language Models Resolve Real-World GitHub Issues? arXiv:2310.06770.
+- Miller 2024. Adding Error Bars to Evals: A Statistical Approach to Language Model Evaluations. arXiv:2411.00640.
+- Chen et al. 2021. Evaluating Large Language Models Trained on Code. arXiv:2107.03374.
+- Efron 1987. Better Bootstrap Confidence Intervals. Journal of the American Statistical Association.
+- McNemar 1947. Note on the sampling error of the difference between correlated proportions or percentages. Psychometrika 12(2).
+- Holm 1979. A simple sequentially rejective multiple test procedure. Scandinavian Journal of Statistics 6(2).
+- Benjamini and Hochberg 1995. Controlling the False Discovery Rate: A Practical and Powerful Approach to Multiple Testing. JRSS B 57(1).
+- Cameron and Miller 2015. A Practitioner's Guide to Cluster-Robust Inference. Journal of Human Resources 50(2).
+
+### Tests
+
+`uv run pytest -q --cov=evalstats` runs 146 offline tests in about 2 s and
+reports 98 % line coverage (97 % for `cli.py`, 98 % or more for every other
+module), measured on 2026-11-06. `uv run ruff check .` and `uv run mypy` run in
+CI as well.
 
 ## Results on real public data: when do two different scores not mean two different models?
 
@@ -374,7 +410,11 @@ python -c "import json,sys,collections;c=collections.Counter(json.loads(l)['item
 ## Limitations
 
 - The CLT interval is a normal (or `t`) approximation and is poor for very small
-  `n` or means near 0 or 1; use `--method bca` there.
+  `n` or means near 0 or 1; use `--method bca` there. For 0/1 scores its bounds
+  are clipped to 0 to 100 % (-100 to 100 points for a difference) and the
+  output says so; real-valued scores have no known range and are not clipped.
+- With one item, or with clusters and only one cluster, no method gives an
+  interval: the bounds are shown as `-`.
 - Cluster-robust errors need tens of clusters to be reliable. With 12 clusters
   of very unequal size, as on SWE-bench Verified, they are themselves noisy;
   the coverage simulation (`python examples/coverage.py`) reaches 86 % for a
@@ -402,17 +442,6 @@ python -c "import json,sys,collections;c=collections.Counter(json.loads(l)['item
 - [judgebias](https://github.com/vipul21435/judgebias): audit an LLM judge for position, length and self-preference bias before using its scores.
 - [rubricops](https://github.com/vipul21435/rubricops): versioned rubrics and inter-rater agreement.
 - [prefpairs](https://github.com/vipul21435/prefpairs): pairwise preference data, Bradley-Terry and Elo.
-
-## References
-
-- Jimenez et al. 2023. SWE-bench: Can Language Models Resolve Real-World GitHub Issues? arXiv:2310.06770.
-- Miller 2024. Adding Error Bars to Evals: A Statistical Approach to Language Model Evaluations. arXiv:2411.00640.
-- Chen et al. 2021. Evaluating Large Language Models Trained on Code. arXiv:2107.03374.
-- Efron 1987. Better Bootstrap Confidence Intervals. Journal of the American Statistical Association.
-- McNemar 1947. Note on the sampling error of the difference between correlated proportions or percentages. Psychometrika 12(2).
-- Holm 1979. A simple sequentially rejective multiple test procedure. Scandinavian Journal of Statistics 6(2).
-- Benjamini and Hochberg 1995. Controlling the False Discovery Rate: A Practical and Powerful Approach to Multiple Testing. JRSS B 57(1).
-- Cameron and Miller 2015. A Practitioner's Guide to Cluster-Robust Inference. Journal of Human Resources 50(2).
 
 ## Licence
 
