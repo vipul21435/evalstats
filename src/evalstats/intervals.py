@@ -117,6 +117,9 @@ def mean_interval(
     ``percentile`` and ``bca`` are nonparametric bootstraps over items; with
     clusters they resample whole clusters so that the dependence inside a
     cluster is preserved.
+
+    With fewer than two items, or fewer than two clusters, there is no
+    spread to estimate and both bounds are NaN whatever the method.
     """
     x = _as_array(scores)
     n = x.size
@@ -131,14 +134,19 @@ def mean_interval(
             est, float(est - z * se), float(est + z * se), level, "clt", n, se, n_clusters
         )
 
+    if method not in ("percentile", "bca"):
+        raise ValueError(f"unknown method {method!r}")
+    if n < 2 or (n_clusters is not None and n_clusters < 2):
+        # one item (or one cluster) resamples to itself: a zero-width
+        # interval would claim certainty, so report no bounds, as clt does
+        nan = float("nan")
+        return Interval(est, nan, nan, level, method, n, None, n_clusters)
     boot = _bootstrap_means(x, c, n_boot, seed)
     if method == "percentile":
         lo, hi = np.percentile(boot, [100 * (0.5 - level / 2), 100 * (0.5 + level / 2)])
         return Interval(est, float(lo), float(hi), level, "percentile", n, None, n_clusters)
-    if method == "bca":
-        lo, hi = _bca_bounds(x, c, boot, est, level)
-        return Interval(est, lo, hi, level, "bca", n, None, n_clusters)
-    raise ValueError(f"unknown method {method!r}")
+    lo, hi = _bca_bounds(x, c, boot, est, level)
+    return Interval(est, lo, hi, level, "bca", n, None, n_clusters)
 
 
 def _bootstrap_means(x: np.ndarray, c: np.ndarray | None, n_boot: int, seed: int | None):

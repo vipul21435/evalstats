@@ -24,6 +24,7 @@ from evalstats.paired import paired_comparison
 from evalstats.passk import pass_at_k
 from evalstats.power import items_for_discordance, plan_from_scores
 from evalstats.report import (
+    bound,
     emit,
     full_report,
     leaderboard_tables,
@@ -204,10 +205,6 @@ def _interval_rows(models, args):
     return rows
 
 
-def _bound(x: float) -> str:
-    return "-" if math.isnan(x) else pct(x)
-
-
 def _interval_table(rows, level: float) -> str:
     lvl = int(round(100 * level))
     table = [
@@ -216,8 +213,8 @@ def _interval_table(rows, level: float) -> str:
             r["n"],
             "-" if r["n_clusters"] is None else r["n_clusters"],
             pct(r["estimate"]),
-            _bound(r["low"]),
-            _bound(r["high"]),
+            bound(r["low"]),
+            bound(r["high"]),
             r["method"],
         ]
         for r in rows
@@ -277,7 +274,7 @@ def cmd_compare(args: argparse.Namespace) -> int:
         f"{args.a}: {pct(res.mean_a)} %",
         f"{args.b}: {pct(res.mean_b)} %",
         f"difference ({args.a} - {args.b}): {pct(d.estimate)} points, "
-        f"{lvl}% interval [{pct(d.low)}, {pct(d.high)}] ({d.method})",
+        f"{lvl}% interval [{bound(d.low)}, {bound(d.high)}] ({d.method})",
         f"sign-flip permutation p: {p_value(res.permutation_p)}",
     ]
     if res.cluster_permutation_p is not None:

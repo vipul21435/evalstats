@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 import pytest
 from scipy import stats
@@ -128,3 +130,39 @@ def test_bca_matches_scipy_on_binary_sample():
     assert ours.low == pytest.approx(ref.low, abs=0.01)
     assert ours.high == pytest.approx(ref.high, abs=0.01)
     assert ours.low < 0.32 < ours.high
+
+
+@pytest.mark.parametrize("method", ["clt", "percentile", "bca"])
+def test_one_item_gives_no_interval_with_any_method(method):
+    iv = mean_interval([1.0], method=method)
+    assert iv.estimate == 1.0 and iv.n == 1
+    assert math.isnan(iv.low) and math.isnan(iv.high)
+
+
+@pytest.mark.parametrize("method", ["clt", "percentile", "bca"])
+def test_one_cluster_gives_no_interval_with_any_method(method):
+    iv = mean_interval([1.0, 0.0, 1.0], method=method, clusters=["r", "r", "r"])
+    assert iv.n_clusters == 1
+    assert math.isnan(iv.low) and math.isnan(iv.high)
+
+
+@pytest.mark.parametrize("method", ["percentile", "bca"])
+def test_cli_summary_one_cluster_shows_dashes(tmp_path, capsys, method):
+    from evalstats.cli import main
+
+    p = tmp_path / "onecl.csv"
+    p.write_text("item,model,score,cluster\nq1,a,1,r\nq2,a,0,r\nq3,a,1,r\n", encoding="utf-8")
+    assert main(["summary", str(p), "--method", method]) == 0
+    out = capsys.readouterr().out
+    assert "| a | 3 | 1 | 66.7 | - | - |" in out
+    assert "fewer than 2 items (or 2 clusters)" in out
+
+
+def test_leaderboard_table_shows_dashes_for_missing_bounds(tmp_path, capsys):
+    from evalstats.cli import main
+
+    p = tmp_path / "one.csv"
+    p.write_text("item,model,score\nq1,a,1\nq1,b,0\n", encoding="utf-8")
+    assert main(["leaderboard", str(p), "--method", "bca"]) == 0
+    out = capsys.readouterr().out
+    assert "nan" not in out

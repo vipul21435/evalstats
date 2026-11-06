@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -14,6 +15,11 @@ from evalstats.power import plan_from_scores
 def pct(x: float) -> str:
     """A proportion as a percentage with one decimal."""
     return f"{100 * x:.1f}"
+
+
+def bound(x: float) -> str:
+    """An interval bound as :func:`pct`, or ``-`` when it is undefined (NaN)."""
+    return "-" if math.isnan(x) else pct(x)
 
 
 def p_value(p: float) -> str:
@@ -85,8 +91,8 @@ def leaderboard_tables(lb: Leaderboard) -> str:
             iv.n,
             "-" if iv.n_clusters is None else iv.n_clusters,
             pct(iv.estimate),
-            pct(iv.low),
-            pct(iv.high),
+            bound(iv.low),
+            bound(iv.high),
         ]
         for i, (name, iv) in enumerate(lb.models)
     ]
@@ -99,8 +105,8 @@ def leaderboard_tables(lb: Leaderboard) -> str:
             r.b,
             r.n,
             pct(r.difference),
-            pct(r.low),
-            pct(r.high),
+            bound(r.low),
+            bound(r.high),
             r.test,
             p_value(r.p_value),
             p_value(r.p_holm),
