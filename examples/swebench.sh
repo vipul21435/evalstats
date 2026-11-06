@@ -9,12 +9,18 @@ python examples/fetch_swebench.py --out "$DATA"
 F="$DATA/swebench_verified.jsonl"
 A=mini-v2.0.0_gemini-3-flash-high
 B=mini-v2.0.0_glm-5-high
+OPUS=mini-v2.0.0_claude-4-5-opus-high
 evalstats summary "$F"
 evalstats summary "$F" --cluster-by-prefix
 evalstats compare "$F" --a "$A" --b "$B"
 evalstats compare "$F" --a "$A" --b "$B" --cluster-by-prefix
 evalstats power "$F" --a "$A" --b "$B" --delta 0.03 --cluster-by-prefix
+evalstats compare "$F" --a "$OPUS" --b "$B" --cluster-by-prefix
+evalstats power "$F" --a "$OPUS" --b "$B" --delta 0.03 --cluster-by-prefix
+evalstats leaderboard "$F" --cluster-by-prefix --against-leader
 evalstats leaderboard "$F" --cluster-by-prefix
 evalstats leaderboard "$F" --cluster-by-prefix --test cluster
+evalstats summary "$F" --cluster-by-prefix --method bca
+python -c "import json,sys,collections;c=collections.Counter(json.loads(l)['item'].split('__')[0] for l in open(sys.argv[1]) if '4-5-opus' in l);print(c.most_common(3))" "$F"
 evalstats report "$F" --cluster-by-prefix --out "$DATA/report.md"
 python examples/plot_intervals.py "$F" --out docs/swebench_intervals.png --strip mini-v2.0.0_

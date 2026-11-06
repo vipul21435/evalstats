@@ -135,9 +135,11 @@ Notation: `n` items, scores `x_i`, mean `x̄`, `G` clusters.
   standard error. With clusters the critical value is the `t` quantile with
   `G - 1` degrees of freedom instead of `z`, because the variance is estimated
   from only `G` cluster sums; with 12 clusters this widens a 95 % interval by
-  12 %. A seeded simulation in the tests (20 unequal clusters with a shared
-  cluster effect, 400 replications) gives 33 % coverage for the item-level 90 % interval and
-  86 % for the cluster-robust one.
+  12 %. A seeded simulation (20 unequal clusters with a shared cluster effect,
+  400 replications; `python examples/coverage.py`, the same loop as
+  `tests/test_intervals.py::test_clustered_clt_coverage_with_cluster_effects`)
+  gives 33 % coverage for the item-level 90 % interval and 86 % for the
+  cluster-robust one.
 - **Percentile bootstrap**: resample items, or whole clusters when a cluster key
   is given, with replacement; take the `α/2` and `1 - α/2` quantiles of the
   resampled means.
@@ -371,8 +373,8 @@ python -c "import json,sys,collections;c=collections.Counter(json.loads(l)['item
   `n` or means near 0 or 1; use `--method bca` there.
 - Cluster-robust errors need tens of clusters to be reliable. With 12 clusters
   of very unequal size, as on SWE-bench Verified, they are themselves noisy;
-  the coverage simulation in the tests reaches 86 % for a nominal 90 % interval
-  with 20 unequal clusters. Wild cluster bootstrap and small-sample corrections
+  the coverage simulation (`python examples/coverage.py`) reaches 86 % for a
+  nominal 90 % interval with 20 unequal clusters. Wild cluster bootstrap and small-sample corrections
   beyond `t(G - 1)` are not implemented.
 - The cluster bootstrap resamples whole clusters and takes a ratio of sums;
   with one cluster holding nearly half the items its intervals are lopsided:
