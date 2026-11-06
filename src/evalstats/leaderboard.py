@@ -15,6 +15,13 @@ from evalstats.paired import cluster_sign_flip_test, is_binary, mcnemar_exact, s
 TESTS = ("auto", "mcnemar", "sign-flip", "cluster")
 
 
+def _p_array(p_values: ArrayLike) -> np.ndarray:
+    p = np.asarray(p_values, dtype=float).ravel()
+    if not ((p >= 0) & (p <= 1)).all():
+        raise ValueError("p-values must be in [0, 1]")
+    return p
+
+
 def holm(p_values: ArrayLike) -> np.ndarray:
     """Holm step-down adjusted p-values (control the family-wise error rate).
 
@@ -22,7 +29,7 @@ def holm(p_values: ArrayLike) -> np.ndarray:
     ``m - i`` (``i`` from 0), the sequence is made monotone with a running
     maximum, and everything is capped at 1.
     """
-    p = np.asarray(p_values, dtype=float).ravel()
+    p = _p_array(p_values)
     m = p.size
     if m == 0:
         return p
@@ -41,7 +48,7 @@ def benjamini_hochberg(p_values: ArrayLike) -> np.ndarray:
     multiplied by ``m / i``, the sequence is made monotone from the top with
     a running minimum, and everything is capped at 1.
     """
-    p = np.asarray(p_values, dtype=float).ravel()
+    p = _p_array(p_values)
     m = p.size
     if m == 0:
         return p
@@ -56,6 +63,8 @@ def benjamini_hochberg(p_values: ArrayLike) -> np.ndarray:
 
 @dataclass(frozen=True)
 class PairRow:
+    """One tested pair: the paired difference, its interval and three p-values."""
+
     a: str
     b: str
     n: int
@@ -68,6 +77,7 @@ class PairRow:
     p_bh: float
 
     def to_dict(self) -> dict:
+        """All fields as a JSON-ready dict."""
         return {
             "a": self.a,
             "b": self.b,
@@ -84,6 +94,8 @@ class PairRow:
 
 @dataclass(frozen=True)
 class Leaderboard:
+    """Models ranked by mean with intervals, and the corrected pairwise tests."""
+
     models: list[tuple[str, Interval]]
     pairs: list[PairRow]
     alpha: float
@@ -101,6 +113,7 @@ class Leaderboard:
         return [name for name, _ in self.models if name not in beaten]
 
     def to_dict(self) -> dict:
+        """Models, pairs and the top group as a JSON-ready dict."""
         return {
             "alpha": self.alpha,
             "models": [{"model": n, **iv.to_dict()} for n, iv in self.models],

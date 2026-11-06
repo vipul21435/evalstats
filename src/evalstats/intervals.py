@@ -42,6 +42,7 @@ class Interval:
     n_clusters: int | None = None
 
     def to_dict(self) -> dict[str, float | int | str | None]:
+        """All fields as a JSON-ready dict."""
         return {
             "estimate": self.estimate,
             "low": self.low,
@@ -66,6 +67,24 @@ def finite_array(values: ArrayLike, what: str = "scores") -> np.ndarray:
     return x
 
 
+def cluster_keys(clusters: ArrayLike) -> np.ndarray:
+    """Cluster keys as a flat array that ``np.unique`` can sort.
+
+    Keys of mixed types (strings with ``None`` or numbers) are compared as
+    strings; a homogeneous array is returned as is.
+    """
+    c = np.asarray(clusters).ravel()
+    if c.dtype == object:
+        c = np.array([str(k) for k in c])
+    return c
+
+
+def check_level(level: float) -> None:
+    """Raise ``ValueError`` unless ``0 < level < 1``."""
+    if not 0 < level < 1:
+        raise ValueError("level must be in (0, 1)")
+
+
 def _as_array(scores: ArrayLike) -> np.ndarray:
     x = finite_array(scores)
     if x.size == 0:
@@ -87,12 +106,12 @@ def standard_error(scores: ArrayLike, clusters: ArrayLike | None = None) -> floa
         return float("nan")
     if clusters is None:
         return float(x.std(ddof=1) / np.sqrt(n))
-    c = np.asarray(clusters).ravel()
+    c = cluster_keys(clusters)
     if c.size != n:
         raise ValueError("clusters must align with scores")
     resid = x - x.mean()
-    _, inv = np.unique(c, return_inverse=True)
-    g = int(inv.max()) + 1
+    keys, inv = np.unique(c, return_inverse=True)
+    g = int(keys.size)
     if g < 2:
         return float("nan")
     sums = np.bincount(inv, weights=resid, minlength=g)
@@ -109,8 +128,7 @@ def critical_value(level: float, n_clusters: int | None = None) -> float:
     freedom; using the normal quantile with a dozen clusters gives intervals
     that are too short.
     """
-    if not 0 < level < 1:
-        raise ValueError("level must be in (0, 1)")
+    check_level(level)
     q = 0.5 + level / 2
     if n_clusters is None or n_clusters < 2:
         return float(stats.norm.ppf(q))
@@ -137,10 +155,13 @@ def mean_interval(
     With fewer than two items, or fewer than two clusters, there is no
     spread to estimate and both bounds are NaN whatever the method.
     """
+    check_level(level)
     x = _as_array(scores)
     n = x.size
     est = float(x.mean())
-    c = None if clusters is None else np.asarray(clusters).ravel()
+    c = None if clusters is None else cluster_keys(clusters)
+    if c is not None and c.size != n:
+        raise ValueError("clusters must align with scores")
     n_clusters = None if c is None else int(np.unique(c).size)
 
     if method == "clt":
@@ -174,8 +195,8 @@ def _bootstrap_means(
         return np.concatenate(
             [x[rng.integers(0, n, size=(m, n))].mean(axis=1) for m in row_chunks(n_boot, n)]
         )
-    _, inv = np.unique(c, return_inverse=True)
-    g = int(inv.max()) + 1
+    keys, inv = np.unique(c, return_inverse=True)
+    g = int(keys.size)
     sums = np.bincount(inv, weights=x, minlength=g)
     sizes = np.bincount(inv, minlength=g).astype(float)
     out = []
@@ -190,8 +211,8 @@ def _jackknife_means(x: np.ndarray, c: np.ndarray | None) -> np.ndarray:
     total = x.sum()
     if c is None:
         return (total - x) / (n - 1)
-    _, inv = np.unique(c, return_inverse=True)
-    g = int(inv.max()) + 1
+    keys, inv = np.unique(c, return_inverse=True)
+    g = int(keys.size)
     sums = np.bincount(inv, weights=x, minlength=g)
     sizes = np.bincount(inv, minlength=g).astype(float)
     return (total - sums) / (n - sizes)

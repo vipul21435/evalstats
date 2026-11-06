@@ -8,7 +8,14 @@ import numpy as np
 from numpy.typing import ArrayLike
 from scipy import stats
 
-from evalstats.intervals import Interval, Method, finite_array, mean_interval, row_chunks
+from evalstats.intervals import (
+    Interval,
+    Method,
+    cluster_keys,
+    finite_array,
+    mean_interval,
+    row_chunks,
+)
 
 
 @dataclass(frozen=True)
@@ -25,9 +32,11 @@ class McNemar:
 
     @property
     def discordant(self) -> int:
+        """Items on which the two models disagree, ``b + c``."""
         return self.b + self.c
 
     def to_dict(self) -> dict[str, float | int]:
+        """The counts and the p-value as a JSON-ready dict."""
         return {"b": self.b, "c": self.c, "discordant": self.discordant, "p_value": self.p_value}
 
 
@@ -45,6 +54,7 @@ class PairedResult:
     n_clusters: int | None = None
 
     def to_dict(self) -> dict:
+        """All fields as a JSON-ready dict, the interval nested."""
         return {
             "n": self.n,
             "mean_a": self.mean_a,
@@ -117,18 +127,18 @@ def cluster_sign_flip_test(
     handful of clusters cannot give a small p-value whatever the data.
     """
     d = finite_array(diffs, "scores")
-    c = np.asarray(clusters).ravel()
+    c = cluster_keys(clusters)
     if d.size == 0 or c.size != d.size:
         raise ValueError("differences and clusters must align and be non-empty")
-    _, inv = np.unique(c, return_inverse=True)
-    g = int(inv.max()) + 1
+    keys, inv = np.unique(c, return_inverse=True)
+    g = int(keys.size)
     sums = np.bincount(inv, weights=d, minlength=g)
     observed = abs(sums.sum())
     tol = 1e-9 * max(1.0, float(np.abs(sums).sum()))
     if g <= max_exact:
         codes = np.arange(2**g)[:, None]
-        signs = 1.0 - 2.0 * ((codes >> np.arange(g)) & 1)
-        stat = np.abs(signs @ sums)
+        patterns = 1.0 - 2.0 * ((codes >> np.arange(g)) & 1)
+        stat = np.abs(patterns @ sums)
         return float(np.mean(stat >= observed - tol))
     rng = np.random.default_rng(seed)
     count = 0
@@ -139,6 +149,7 @@ def cluster_sign_flip_test(
 
 
 def is_binary(x: ArrayLike) -> bool:
+    """True when every value is 0 or 1."""
     return bool(set(np.unique(np.asarray(x, dtype=float))) <= {0.0, 1.0})
 
 
@@ -172,5 +183,5 @@ def paired_comparison(
     n_cl = None
     if clusters is not None:
         cl_p = cluster_sign_flip_test(d, clusters, n_perm=n_perm, seed=seed)
-        n_cl = int(np.unique(np.asarray(clusters)).size)
+        n_cl = int(np.unique(cluster_keys(clusters)).size)
     return PairedResult(int(a.size), float(a.mean()), float(b.mean()), diff, perm_p, mc, cl_p, n_cl)

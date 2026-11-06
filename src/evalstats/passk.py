@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import ArrayLike
 
-from evalstats.intervals import Interval, row_chunks
+from evalstats.intervals import Interval, check_level, row_chunks
 
 
 def pass_at_k_item(n: int, c: int, k: int) -> float:
@@ -40,6 +40,7 @@ def pass_at_k(
     The per-item estimator is unbiased; the interval resamples items, not
     samples, so it reflects how much the benchmark's items disagree.
     """
+    check_level(level)
     n = np.asarray(n_samples, dtype=int).ravel()
     c = np.asarray(n_correct, dtype=int).ravel()
     if n.shape != c.shape or n.size == 0:

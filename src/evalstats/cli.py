@@ -443,6 +443,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         return COMMANDS[args.command](args)
     except (OSError, ValueError, KeyError) as exc:
+        msg: object
         if isinstance(exc, OSError) and exc.filename is not None:
             msg = f"{exc.filename}: {exc.strerror}"
         elif isinstance(exc, KeyError) and exc.args:

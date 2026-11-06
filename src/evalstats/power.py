@@ -36,6 +36,7 @@ class PowerPlan:
     detectable_at_observed: float | None = None
 
     def to_dict(self) -> dict:
+        """All fields as a JSON-ready dict."""
         return {
             "delta": self.delta,
             "alpha": self.alpha,
