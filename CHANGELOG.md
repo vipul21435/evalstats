@@ -14,6 +14,25 @@
   typed with `numpy.typing.ArrayLike`, and the package ships `py.typed`.
 - `examples/fetch_swebench.py` pins the experiments repository commit and takes
   `--ref`; `examples/coverage.py` prints the coverage simulation figures.
+- NaN and infinite scores are rejected, in files and in the API; before, they
+  made the sign-flip tests return their smallest p-value.
+- `power` and the report's neighbour plans refuse to plan for two models that
+  never disagree (or whose differences do not vary) instead of reporting 0
+  items.
+- Percentile and BCa intervals with one item or one cluster have no bounds,
+  as the CLT interval already had; BCa no longer fails on them.
+- CSV files with a byte-order mark are read; a non-UTF-8 file, a file with no
+  scored rows, a CSV row with the wrong number of fields, a fractional sample
+  count, and an item given both as counts and as per-sample rows are errors.
+  A model may mix count rows and per-sample rows across items.
+- CLT bounds of 0/1 scores are clipped to the feasible range, with a note in
+  the output.
+- Bootstrap resamples and sign flips are drawn in chunks, so memory no longer
+  grows with `n_boot` or `n_perm` times the item count; results are unchanged
+  for a given seed.
+- `holm` and `benjamini_hochberg` check that p-values lie in [0, 1];
+  `mean_interval` and `pass_at_k` check the level; cluster keys of mixed types
+  are compared as strings. mypy runs in CI.
 
 ## 0.1.0
 
