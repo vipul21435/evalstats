@@ -35,7 +35,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("path", help="JSONL or CSV results file with prefixed item ids")
     ap.add_argument("--out", required=True, help="PNG file to write")
     ap.add_argument("--strip", default="", help="prefix to drop from model names in labels")
+    ap.add_argument(
+        "--rename",
+        action="append",
+        default=[],
+        metavar="MODEL=LABEL",
+        help="label to show for one model, in place of its name (repeatable)",
+    )
     args = ap.parse_args(argv)
+    renames = dict(r.split("=", 1) for r in args.rename)
 
     models = scores_by_model(read_records(args.path), default_cluster=True)
     rows = []
@@ -53,6 +61,8 @@ def main(argv: list[str] | None = None) -> int:
         diffs.append((name, mean_interval(sa - sb, clusters=cl), mean_interval(sa - sb)))
 
     def label(n: str) -> str:
+        if n in renames:
+            return renames[n]
         return n[len(args.strip) :] if args.strip and n.startswith(args.strip) else n
 
     fig, (left, right) = plt.subplots(1, 2, figsize=(11, 0.42 * len(rows) + 1.6), sharey=False)
