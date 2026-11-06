@@ -110,6 +110,13 @@ power for 3.0 points on the observed 120 items: 0.32
 smallest difference detectable on 120 items: 5.6 points
 ```
 
+Before any data exist, the same formula runs from an assumed discordance:
+
+```
+$ evalstats power --discordance 0.12 --delta 0.03
+items to detect 3.0 points at alpha 0.05, power 0.8, discordance 12.0 %: 1045
+```
+
 `evalstats leaderboard` ranks every model and tests every pair with Holm and
 Benjamini-Hochberg corrections; `evalstats report` writes the ranking, the
 pairwise table and power plans for neighbouring models as one Markdown (or

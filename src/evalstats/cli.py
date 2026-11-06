@@ -21,7 +21,7 @@ from evalstats.io import align, passk_counts, read_records, scores_by_model
 from evalstats.leaderboard import leaderboard
 from evalstats.paired import paired_comparison
 from evalstats.passk import pass_at_k
-from evalstats.power import plan_from_scores
+from evalstats.power import items_for_discordance, plan_from_scores
 from evalstats.report import (
     emit,
     full_report,
@@ -107,9 +107,16 @@ def build_parser() -> argparse.ArgumentParser:
     rp.add_argument("--power", type=float, default=0.8, help="target power (default 0.8)")
 
     pw = sub.add_parser("power", help="items needed to detect a difference between two models")
-    pw.add_argument("path", help="JSONL or CSV results file")
-    pw.add_argument("--a", required=True, help="first model name")
-    pw.add_argument("--b", required=True, help="second model name")
+    pw.add_argument(
+        "path", nargs="?", help="JSONL or CSV results file (omit with --discordance)"
+    )
+    pw.add_argument("--a", help="first model name (with a results file)")
+    pw.add_argument("--b", help="second model name (with a results file)")
+    pw.add_argument(
+        "--discordance",
+        type=float,
+        help="plan without data: assumed share of items the two models disagree on",
+    )
     pw.add_argument(
         "--delta", type=float, default=0.03, help="difference to detect, as a proportion"
     )
@@ -276,7 +283,37 @@ def cmd_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def _power_without_data(args: argparse.Namespace) -> int:
+    n = items_for_discordance(
+        args.delta, args.discordance, alpha=args.alpha, power=args.power
+    )
+    payload = {
+        "delta": args.delta,
+        "discordance": args.discordance,
+        "alpha": args.alpha,
+        "power": args.power,
+        "n_items": n,
+    }
+    if args.json:
+        emit(to_json(payload), args.out)
+    else:
+        emit(
+            f"items to detect {pct(args.delta)} points at alpha {args.alpha:g}, "
+            f"power {args.power:g}, discordance {pct(args.discordance)} %: {n}",
+            args.out,
+        )
+    return 0
+
+
 def cmd_power(args: argparse.Namespace) -> int:
+    if args.path is None:
+        if args.discordance is None:
+            print("error: give a results file with --a and --b, or --discordance", file=sys.stderr)
+            return 2
+        return _power_without_data(args)
+    if args.a is None or args.b is None:
+        print("error: --a and --b are needed with a results file", file=sys.stderr)
+        return 2
     aligned = _two_models(args)
     if aligned is None:
         return 2

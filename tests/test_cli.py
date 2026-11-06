@@ -165,3 +165,17 @@ def test_report_command(tmp_path, capsys):
     assert main(["report", str(p), "--json", "--n-boot", "100", "--test", "sign-flip"]) == 0
     data = json.loads(capsys.readouterr().out)
     assert data["n_models"] >= 2 and "plans" in data
+
+
+def test_power_without_data(tmp_path, capsys):
+    from evalstats.power import items_for_discordance
+
+    assert main(["power", "--discordance", "0.12", "--delta", "0.03"]) == 0
+    out = capsys.readouterr().out
+    assert out.strip().endswith(f": {items_for_discordance(0.03, 0.12)}")
+    assert main(["power", "--discordance", "0.2", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["n_items"] == items_for_discordance(0.03, 0.2)
+    assert main(["power"]) == 2
+    p = tmp_path / "r.jsonl"
+    _write_fixture(p)
+    assert main(["power", str(p), "--a", "alpha"]) == 2
