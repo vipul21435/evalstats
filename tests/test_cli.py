@@ -93,9 +93,7 @@ def test_compare_markdown_and_json(tmp_path, capsys):
 
 def test_passk_command(tmp_path, capsys):
     p = tmp_path / "k.jsonl"
-    rows = [
-        {"item": f"i{j}", "model": "m", "n_samples": 10, "n_correct": j % 4} for j in range(30)
-    ]
+    rows = [{"item": f"i{j}", "model": "m", "n_samples": 10, "n_correct": j % 4} for j in range(30)]
     p.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
     assert main(["passk", str(p), "--k", "2", "--n-boot", "200"]) == 0
     out = capsys.readouterr().out
@@ -122,8 +120,8 @@ def test_passk_per_sample_rows(tmp_path, capsys):
     assert data[0]["n"] == 12 and abs(data[0]["estimate"] - expected) < 1e-12
     bad = tmp_path / "bad.jsonl"
     bad.write_text(json.dumps({"item": "a", "model": "m", "score": 0.5}) + "\n")
-    with pytest.raises(ValueError):
-        main(["passk", str(bad)])
+    assert main(["passk", str(bad)]) == 2
+    assert "0/1 scores" in capsys.readouterr().err
 
 
 def test_leaderboard_and_power_commands(tmp_path, capsys):
@@ -139,8 +137,24 @@ def test_leaderboard_and_power_commands(tmp_path, capsys):
     assert main(["leaderboard", str(p), "--cluster-by-prefix", "--test", "cluster"]) == 0
     assert "| cluster |" in capsys.readouterr().out
     out_md = tmp_path / "power.md"
-    assert main(["power", str(p), "--a", "alpha", "--b", "beta", "--delta", "0.03",
-                 "--cluster-by-prefix", "--out", str(out_md)]) == 0
+    assert (
+        main(
+            [
+                "power",
+                str(p),
+                "--a",
+                "alpha",
+                "--b",
+                "beta",
+                "--delta",
+                "0.03",
+                "--cluster-by-prefix",
+                "--out",
+                str(out_md),
+            ]
+        )
+        == 0
+    )
     text = out_md.read_text()
     assert "observed discordance" in text and "design effect" in text
     assert main(["power", str(p), "--a", "alpha", "--b", "beta", "--json"]) == 0
@@ -149,8 +163,10 @@ def test_leaderboard_and_power_commands(tmp_path, capsys):
     assert main(["power", str(p), "--a", "alpha", "--b", "gamma"]) == 2
     assert main(["summary", str(p), "--json", "--out", str(tmp_path / "s.json")]) == 0
     assert json.loads((tmp_path / "s.json").read_text())[0]["model"] == "alpha"
-    assert main(["compare", str(p), "--a", "alpha", "--b", "beta", "--out",
-                 str(tmp_path / "c.md")]) == 0
+    assert (
+        main(["compare", str(p), "--a", "alpha", "--b", "beta", "--out", str(tmp_path / "c.md")])
+        == 0
+    )
     assert "McNemar" in (tmp_path / "c.md").read_text()
 
 
@@ -179,3 +195,63 @@ def test_power_without_data(tmp_path, capsys):
     p = tmp_path / "r.jsonl"
     _write_fixture(p)
     assert main(["power", str(p), "--a", "alpha"]) == 2
+
+
+def _bad_inputs(tmp_path):
+    bad_json = tmp_path / "bad.jsonl"
+    bad_json.write_text('{"item": "x", "model": "a", "score": 1}\n{bad\n', encoding="utf-8")
+    no_model = tmp_path / "nomodel.jsonl"
+    no_model.write_text('{"item": "x", "score": 1}\n', encoding="utf-8")
+    bad_score = tmp_path / "badscore.csv"
+    bad_score.write_text("item,model,score\nx,a,yes\n", encoding="utf-8")
+    real = tmp_path / "real.jsonl"
+    real.write_text(
+        "".join(
+            json.dumps({"item": f"i{k}", "model": m, "score": s}) + "\n"
+            for k in range(3)
+            for m, s in (("a", 0.5), ("b", 0.2))
+        ),
+        encoding="utf-8",
+    )
+    pk = tmp_path / "pk.jsonl"
+    pk.write_text('{"item": "x", "model": "a", "n_samples": 3, "n_correct": 1}\n')
+    fixture = tmp_path / "ok.jsonl"
+    _write_fixture(fixture)
+    return {
+        "missing": (["summary", str(tmp_path / "missing.jsonl")], "No such file"),
+        "json": (["summary", str(bad_json)], "bad.jsonl:2: not valid JSON"),
+        "column": (["summary", str(no_model)], "nomodel.jsonl:1: missing column 'model'"),
+        "number": (["summary", str(bad_score)], "badscore.csv:2: column 'score'"),
+        "power": (["power", "--discordance", "0.02", "--delta", "0.03"], "cannot exceed"),
+        "passk": (["passk", str(pk), "--k", "5"], "k must not exceed"),
+        "cluster": (["leaderboard", str(fixture), "--test", "cluster"], "--cluster-by-prefix"),
+        "mcnemar": (["leaderboard", str(real), "--test", "mcnemar"], "McNemar needs 0/1"),
+    }
+
+
+@pytest.mark.parametrize(
+    "case", ["missing", "json", "column", "number", "power", "passk", "cluster", "mcnemar"]
+)
+def test_bad_input_is_one_line_error(tmp_path, capsys, case):
+    argv, expected = _bad_inputs(tmp_path)[case]
+    assert main(argv) == 2
+    err = capsys.readouterr().err
+    assert err.startswith("error: ") and expected in err
+    assert "Traceback" not in err and err.count("\n") == 1
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["summary", "x.jsonl", "--level", "1.5"],
+        ["power", "--discordance", "0", "--delta", "0.03"],
+        ["power", "--discordance", "0.1", "--delta", "-1"],
+        ["power", "--discordance", "0.1", "--alpha", "abc"],
+        ["passk", "x.jsonl", "--k", "0"],
+    ],
+)
+def test_out_of_range_flags_are_usage_errors(argv, capsys):
+    with pytest.raises(SystemExit) as exc:
+        main(argv)
+    assert exc.value.code == 2
+    assert "Traceback" not in capsys.readouterr().err

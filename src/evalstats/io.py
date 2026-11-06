@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import csv
 import json
-from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -27,30 +26,54 @@ class Record:
     n_correct: int | None = None
 
 
-def _coerce(row: dict) -> Record:
-    score = row.get("score")
-    score_f = None if score in (None, "") else float(score)
-    ns = row.get("n_samples")
-    nc = row.get("n_correct")
+def _number(row: dict, key: str, kind: type, where: str):
+    v = row.get(key)
+    if v in (None, ""):
+        return None
+    try:
+        return kind(v)
+    except (TypeError, ValueError):
+        raise ValueError(f"{where}: column {key!r} is not a number: {v!r}") from None
+
+
+def _coerce(row: object, where: str) -> Record:
+    if not isinstance(row, dict):
+        raise ValueError(f"{where}: expected an object with item, model and score")
+    for key in ("item", "model"):
+        if row.get(key) in (None, ""):
+            raise ValueError(f"{where}: missing column {key!r}")
     return Record(
         item=str(row["item"]),
         model=str(row["model"]),
-        score=score_f,
+        score=_number(row, "score", float, where),
         cluster=None if row.get("cluster") in (None, "") else str(row["cluster"]),
-        n_samples=None if ns in (None, "") else int(ns),
-        n_correct=None if nc in (None, "") else int(nc),
+        n_samples=_number(row, "n_samples", int, where),
+        n_correct=_number(row, "n_correct", int, where),
     )
 
 
 def read_records(path: str | Path) -> list[Record]:
-    """Read a JSONL (``.jsonl``/``.json``) or CSV results file."""
+    """Read a JSONL (``.jsonl``/``.json``) or CSV results file.
+
+    A malformed row raises ``ValueError`` naming the file and line number.
+    """
     p = Path(path)
     text = p.read_text(encoding="utf-8")
+    out: list[Record] = []
     if p.suffix.lower() == ".csv":
-        rows: Iterable[dict] = csv.DictReader(text.splitlines())
-    else:
-        rows = (json.loads(line) for line in text.splitlines() if line.strip())
-    return [_coerce(r) for r in rows]
+        reader = csv.DictReader(text.splitlines())
+        for row in reader:
+            out.append(_coerce(row, f"{p}:{reader.line_num}"))
+        return out
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"{p}:{lineno}: not valid JSON ({exc.msg})") from None
+        out.append(_coerce(row, f"{p}:{lineno}"))
+    return out
 
 
 @dataclass(frozen=True)

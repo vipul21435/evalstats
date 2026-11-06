@@ -160,7 +160,10 @@ def leaderboard(
             p = sign_flip_test(sa - sb, n_perm=n_perm, seed=seed)
         else:
             if clusters is None:
-                raise ValueError("the cluster test needs cluster keys")
+                raise ValueError(
+                    "the cluster test needs cluster keys: add a cluster column "
+                    "or pass --cluster-by-prefix"
+                )
             p = cluster_sign_flip_test(sa - sb, clusters, n_perm=n_perm, seed=seed)
         raw.append((a, b, int(sa.size), iv, name, p))
     ps = np.array([r[5] for r in raw])

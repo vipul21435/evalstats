@@ -35,6 +35,37 @@ from evalstats.report import (
 )
 
 
+def _unit_interval(text: str) -> float:
+    """argparse type: a number strictly between 0 and 1."""
+    try:
+        v = float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a number: {text!r}") from None
+    if not 0 < v < 1:
+        raise argparse.ArgumentTypeError(f"must be between 0 and 1, got {text}")
+    return v
+
+
+def _positive_float(text: str) -> float:
+    try:
+        v = float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a number: {text!r}") from None
+    if not v > 0:
+        raise argparse.ArgumentTypeError(f"must be positive, got {text}")
+    return v
+
+
+def _positive_int(text: str) -> int:
+    try:
+        v = int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not an integer: {text!r}") from None
+    if v < 1:
+        raise argparse.ArgumentTypeError(f"must be at least 1, got {text}")
+    return v
+
+
 def _output(p: argparse.ArgumentParser) -> None:
     p.add_argument("--json", action="store_true", help="print JSON instead of Markdown")
     p.add_argument("--out", help="write the report to this file instead of stdout")
@@ -42,7 +73,9 @@ def _output(p: argparse.ArgumentParser) -> None:
 
 def _common(p: argparse.ArgumentParser) -> None:
     p.add_argument("path", help="JSONL or CSV results file")
-    p.add_argument("--level", type=float, default=0.95, help="confidence level (default 0.95)")
+    p.add_argument(
+        "--level", type=_unit_interval, default=0.95, help="confidence level (default 0.95)"
+    )
     p.add_argument(
         "--method",
         choices=["clt", "percentile", "bca"],
@@ -54,7 +87,9 @@ def _common(p: argparse.ArgumentParser) -> None:
         action="store_true",
         help="cluster items by the part of the id before the first '__' when no cluster column",
     )
-    p.add_argument("--n-boot", type=int, default=2000, help="bootstrap resamples (default 2000)")
+    p.add_argument(
+        "--n-boot", type=_positive_int, default=2000, help="bootstrap resamples (default 2000)"
+    )
     p.add_argument("--seed", type=int, default=0, help="random seed (default 0)")
     _output(p)
 
@@ -71,19 +106,17 @@ def build_parser() -> argparse.ArgumentParser:
     _common(c)
     c.add_argument("--a", required=True, help="first model name")
     c.add_argument("--b", required=True, help="second model name")
-    c.add_argument("--n-perm", type=int, default=10000, help="sign-flip permutations")
+    c.add_argument("--n-perm", type=_positive_int, default=10000, help="sign-flip permutations")
 
     lb = sub.add_parser("leaderboard", help="all models ranked, all pairs tested and corrected")
     _common(lb)
-    lb.add_argument("--n-perm", type=int, default=10000, help="sign-flip permutations")
+    lb.add_argument("--n-perm", type=_positive_int, default=10000, help="sign-flip permutations")
     lb.add_argument(
         "--against-leader",
         action="store_true",
         help="test only the pairs that involve the top model",
     )
-    lb.add_argument(
-        "--models", nargs="+", help="restrict the leaderboard to these model names"
-    )
+    lb.add_argument("--models", nargs="+", help="restrict the leaderboard to these model names")
     lb.add_argument(
         "--test",
         choices=["auto", "mcnemar", "sign-flip", "cluster"],
@@ -94,7 +127,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     rp = sub.add_parser("report", help="intervals, corrected pairs and power plans in one report")
     _common(rp)
-    rp.add_argument("--n-perm", type=int, default=10000, help="sign-flip permutations")
+    rp.add_argument("--n-perm", type=_positive_int, default=10000, help="sign-flip permutations")
     rp.add_argument(
         "--test",
         choices=["auto", "mcnemar", "sign-flip", "cluster"],
@@ -102,26 +135,26 @@ def build_parser() -> argparse.ArgumentParser:
         help="per-pair test, as in leaderboard",
     )
     rp.add_argument(
-        "--delta", type=float, default=0.03, help="difference to plan for (default 0.03)"
+        "--delta", type=_positive_float, default=0.03, help="difference to plan for (default 0.03)"
     )
-    rp.add_argument("--power", type=float, default=0.8, help="target power (default 0.8)")
+    rp.add_argument("--power", type=_unit_interval, default=0.8, help="target power (default 0.8)")
 
     pw = sub.add_parser("power", help="items needed to detect a difference between two models")
-    pw.add_argument(
-        "path", nargs="?", help="JSONL or CSV results file (omit with --discordance)"
-    )
+    pw.add_argument("path", nargs="?", help="JSONL or CSV results file (omit with --discordance)")
     pw.add_argument("--a", help="first model name (with a results file)")
     pw.add_argument("--b", help="second model name (with a results file)")
     pw.add_argument(
         "--discordance",
-        type=float,
+        type=_unit_interval,
         help="plan without data: assumed share of items the two models disagree on",
     )
     pw.add_argument(
-        "--delta", type=float, default=0.03, help="difference to detect, as a proportion"
+        "--delta", type=_positive_float, default=0.03, help="difference to detect, as a proportion"
     )
-    pw.add_argument("--alpha", type=float, default=0.05, help="two-sided size (default 0.05)")
-    pw.add_argument("--power", type=float, default=0.8, help="target power (default 0.8)")
+    pw.add_argument(
+        "--alpha", type=_unit_interval, default=0.05, help="two-sided size (default 0.05)"
+    )
+    pw.add_argument("--power", type=_unit_interval, default=0.8, help="target power (default 0.8)")
     pw.add_argument(
         "--cluster-by-prefix",
         action="store_true",
@@ -134,9 +167,13 @@ def build_parser() -> argparse.ArgumentParser:
         "path",
         help="results file with n_samples and n_correct per item, or one row per sample",
     )
-    k.add_argument("--k", type=int, default=1, help="k (default 1)")
-    k.add_argument("--level", type=float, default=0.95, help="confidence level (default 0.95)")
-    k.add_argument("--n-boot", type=int, default=2000, help="bootstrap resamples (default 2000)")
+    k.add_argument("--k", type=_positive_int, default=1, help="k (default 1)")
+    k.add_argument(
+        "--level", type=_unit_interval, default=0.95, help="confidence level (default 0.95)"
+    )
+    k.add_argument(
+        "--n-boot", type=_positive_int, default=2000, help="bootstrap resamples (default 2000)"
+    )
     k.add_argument("--seed", type=int, default=0, help="random seed (default 0)")
     _output(k)
     return parser
@@ -226,8 +263,7 @@ def cmd_compare(args: argparse.Namespace) -> int:
     ]
     if res.cluster_permutation_p is not None:
         lines.append(
-            f"cluster sign-flip p ({res.n_clusters} clusters): "
-            f"{p_value(res.cluster_permutation_p)}"
+            f"cluster sign-flip p ({res.n_clusters} clusters): {p_value(res.cluster_permutation_p)}"
         )
     if res.mcnemar is not None:
         mc = res.mcnemar
@@ -284,9 +320,7 @@ def cmd_report(args: argparse.Namespace) -> int:
 
 
 def _power_without_data(args: argparse.Namespace) -> int:
-    n = items_for_discordance(
-        args.delta, args.discordance, alpha=args.alpha, power=args.power
-    )
+    n = items_for_discordance(args.delta, args.discordance, alpha=args.alpha, power=args.power)
     payload = {
         "delta": args.delta,
         "discordance": args.discordance,
@@ -376,8 +410,19 @@ COMMANDS = {
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Run one command; bad input prints ``error: ...`` and returns 2."""
     args = build_parser().parse_args(argv)
-    return COMMANDS[args.command](args)
+    try:
+        return COMMANDS[args.command](args)
+    except (OSError, ValueError, KeyError) as exc:
+        if isinstance(exc, OSError) and exc.filename is not None:
+            msg = f"{exc.filename}: {exc.strerror}"
+        elif isinstance(exc, KeyError) and exc.args:
+            msg = exc.args[0]
+        else:
+            msg = exc
+        print(f"error: {msg}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":  # pragma: no cover
