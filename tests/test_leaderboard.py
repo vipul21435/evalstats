@@ -92,3 +92,33 @@ def test_leaderboard_test_choices():
     no_clusters = {k: ModelScores(k, v.items, v.scores, None) for k, v in models.items()}
     with pytest.raises(ValueError):
         leaderboard(no_clusters, test="cluster", n_boot=100)
+
+
+def _subset_full():
+    # "full" solves the first 100 items and a third of 200 more (mean 55.3 %);
+    # "subset" ran only the first 100 and failed 12 of them (mean 88 %). On the
+    # shared items full is ahead, significantly, but subset leads on its mean.
+    items = [f"q{i:03d}" for i in range(300)]
+    full = np.array([1.0] * 100 + [1.0 if i % 3 == 0 else 0.0 for i in range(200)])
+    sub = np.array([0.0] * 12 + [1.0] * 88)
+    return {
+        "full": ModelScores("full", items, full, None),
+        "subset": ModelScores("subset", items[:100], sub, None),
+    }
+
+
+def test_top_group_keeps_a_model_that_beats_the_leader_on_shared_items():
+    lb = leaderboard(_subset_full())
+    assert lb.models[0][0] == "subset"
+    (row,) = lb.pairs
+    assert row.p_holm < lb.alpha
+    # the significant pair favours "full", so it is not beaten by the leader
+    assert sorted(lb.top_group()) == ["full", "subset"]
+
+
+def test_leaderboard_notes_differing_item_sets():
+    from evalstats.report import leaderboard_tables
+
+    text = leaderboard_tables(leaderboard(_subset_full()))
+    assert "different item sets" in text
+    assert "different item sets" not in leaderboard_tables(leaderboard(_models()))

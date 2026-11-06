@@ -123,6 +123,12 @@ def leaderboard_tables(lb: Leaderboard) -> str:
         f"{ranks}\n\n{pairs}\n\n"
         f"not separated from the leader at Holm-adjusted alpha {lb.alpha:g}: {top}"
     )
+    sizes = {name: iv.n for name, iv in lb.models}
+    if any(r.n != sizes[r.a] or r.n != sizes[r.b] for r in lb.pairs):
+        text += (
+            "\n\nThe models have different item sets: the ranking uses each model's own "
+            "items, while each pair is tested on the items the two models share."
+        )
     if any(iv.clipped for _, iv in lb.models) or any(r.clipped for r in lb.pairs):
         text += (
             "\n\nSome CLT bounds fell outside the feasible range and were clipped to it; "

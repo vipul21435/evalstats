@@ -427,7 +427,9 @@ python -c "import json,sys,collections;c=collections.Counter(json.loads(l)['item
 - `power` assumes the observed discordance and design effect carry over to the
   new items; it is a planning aid, not a guarantee.
 - Pairwise tests in the leaderboard use only the items both models were scored
-  on; models scored on different item sets are compared on the overlap.
+  on; models scored on different item sets are compared on the overlap, and
+  the leaderboard output says so. A model leaves the top group only when its
+  significant pair with the leader favours the leader.
 - No ties-aware or stratified McNemar, no mixed-effects models, no Bayesian
   intervals, and no correction for run-to-run variance of the same model
   (that would need several runs per model; pass@k covers the case where the

@@ -103,14 +103,22 @@ class Leaderboard:
     alpha: float
 
     def top_group(self) -> list[str]:
-        """Models not separated from the leader after the Holm correction."""
+        """Models not separated from the leader after the Holm correction.
+
+        A model leaves the group only when its pair with the leader is
+        significant and the paired difference favours the leader. Pairs are
+        tested on shared items while the ranking uses each model's own items,
+        so with different item sets a model can be significantly ahead of
+        the leader on the overlap; such a model stays in the group.
+        """
         if not self.models:
             return []
         leader = self.models[0][0]
         beaten = {
             r.b if r.a == leader else r.a
             for r in self.pairs
-            if leader in (r.a, r.b) and r.p_holm < self.alpha
+            if r.p_holm < self.alpha
+            and ((r.a == leader and r.difference > 0) or (r.b == leader and r.difference < 0))
         }
         return [name for name, _ in self.models if name not in beaten]
 
