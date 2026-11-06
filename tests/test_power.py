@@ -1,0 +1,90 @@
+import math
+
+import numpy as np
+import pytest
+from scipy import stats
+
+from evalstats.power import (
+    detectable_difference,
+    items_for_discordance,
+    items_for_sd,
+    plan_from_scores,
+    power_for_items,
+)
+
+
+def test_items_for_discordance_closed_form():
+    # psi = 0.2, delta = 0.05, alpha 0.05, power 0.8: hand computation of the formula
+    z_a, z_b = stats.norm.ppf(0.975), stats.norm.ppf(0.8)
+    n = (z_a * math.sqrt(0.2) + z_b * math.sqrt(0.2 - 0.0025)) ** 2 / 0.0025
+    assert items_for_discordance(0.05, 0.2) == math.ceil(n)
+    assert items_for_discordance(0.05, 0.2) == 626
+    # fewer disagreements -> fewer items for the same gap
+    assert items_for_discordance(0.03, 0.1) < items_for_discordance(0.03, 0.4)
+
+
+def test_items_for_sd_matches_detectable_difference():
+    n = items_for_sd(0.03, 0.5)
+    # the smallest detectable difference on n items is at most delta, and on
+    # n - 1 items it is larger than delta
+    assert detectable_difference(n, 0.5) <= 0.03 + 1e-12
+    assert detectable_difference(n - 1, 0.5) > 0.03
+
+
+def test_power_increases_with_n_and_hits_target():
+    sd = 0.6
+    n = items_for_sd(0.05, sd, power=0.8)
+    assert 0.8 <= power_for_items(n, 0.05, sd) < 0.82
+    assert power_for_items(10, 0.05, sd) < power_for_items(1000, 0.05, sd)
+    # size: with delta 0 the "power" is alpha
+    assert abs(power_for_items(100, 0.0, sd, alpha=0.05) - 0.05) < 1e-9
+
+
+def test_invalid_inputs():
+    with pytest.raises(ValueError):
+        items_for_discordance(0.0, 0.2)
+    with pytest.raises(ValueError):
+        items_for_discordance(0.3, 0.2)
+    with pytest.raises(ValueError):
+        items_for_discordance(0.1, 0.0)
+    with pytest.raises(ValueError):
+        items_for_sd(0.1, 0.0)
+    with pytest.raises(ValueError):
+        items_for_sd(0.1, 0.5, alpha=1.5)
+    with pytest.raises(ValueError):
+        power_for_items(0, 0.1, 0.5)
+    with pytest.raises(ValueError):
+        detectable_difference(5, 0.0)
+    with pytest.raises(ValueError):
+        plan_from_scores([1], [0], 0.1)
+
+
+def test_plan_from_binary_scores_uses_discordance():
+    rng = np.random.default_rng(3)
+    a = (rng.random(200) < 0.5).astype(float)
+    flip = rng.random(200) < 0.25
+    b = np.where(flip, 1 - a, a)
+    plan = plan_from_scores(a, b, 0.03)
+    assert plan.discordance == pytest.approx(flip.mean())
+    assert plan.n_items == items_for_discordance(0.03, float(flip.mean()))
+    assert plan.design_effect == 1.0 and plan.n_items_clustered == plan.n_items
+    assert 0 < plan.power_at_observed < 1
+    assert plan.detectable_at_observed > 0.03
+    assert set(plan.to_dict()) >= {"n_items", "n_items_clustered", "discordance"}
+
+
+def test_plan_with_clusters_inflates_by_design_effect():
+    rng = np.random.default_rng(5)
+    clusters = np.repeat(np.arange(10), 20)
+    shift = rng.normal(0, 0.3, size=10)[clusters]
+    a = rng.normal(0.5, 0.2, size=200) + shift
+    b = rng.normal(0.5, 0.2, size=200)
+    plan = plan_from_scores(a, b, 0.05, clusters=clusters)
+    assert plan.discordance is None
+    assert plan.design_effect > 1
+    assert plan.n_items_clustered == math.ceil(plan.n_items * plan.design_effect)
+
+
+def test_plan_identical_scores():
+    plan = plan_from_scores([1, 0, 1, 0], [1, 0, 1, 0], 0.1)
+    assert plan.n_items == 0 and plan.power_at_observed is None

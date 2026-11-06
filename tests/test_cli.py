@@ -92,5 +92,23 @@ def test_passk_command(tmp_path, capsys):
     data = json.loads(capsys.readouterr().out)
     assert data[0]["k"] == 1 and data[0]["n"] == 30
     empty = tmp_path / "e.jsonl"
-    empty.write_text(json.dumps({"item": "a", "model": "m", "score": 1}) + "\n")
+    empty.write_text(json.dumps({"item": "a", "model": "m"}) + "\n")
     assert main(["passk", str(empty)]) == 2
+
+
+def test_passk_per_sample_rows(tmp_path, capsys):
+    p = tmp_path / "s.jsonl"
+    rows = []
+    for j in range(12):
+        for s in range(5):
+            rows.append({"item": f"i{j}", "model": "m", "sample": s, "score": int(s < j % 3)})
+    p.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    assert main(["passk", str(p), "--k", "1", "--json", "--n-boot", "100"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    # each item has n=5 samples and c = j % 3 correct; pass@1 = mean(c / 5)
+    expected = sum((j % 3) / 5 for j in range(12)) / 12
+    assert data[0]["n"] == 12 and abs(data[0]["estimate"] - expected) < 1e-12
+    bad = tmp_path / "bad.jsonl"
+    bad.write_text(json.dumps({"item": "a", "model": "m", "score": 0.5}) + "\n")
+    with pytest.raises(ValueError):
+        main(["passk", str(bad)])
