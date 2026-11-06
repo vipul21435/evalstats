@@ -12,7 +12,12 @@ def pass_at_k_item(n: int, c: int, k: int) -> float:
 
     ``1 - C(n - c, k) / C(n, k)``, computed as a product to avoid large
     binomials. Returns 1.0 when fewer than ``k`` samples are wrong.
+    Raises ``ValueError`` unless ``1 <= k <= n`` and ``0 <= c <= n``.
     """
+    if k < 1:
+        raise ValueError("k must be at least 1")
+    if not 0 <= c <= n:
+        raise ValueError(f"n_correct must be between 0 and n_samples, got {c} of {n}")
     if k > n:
         raise ValueError("k must not exceed the number of samples")
     if n - c < k:

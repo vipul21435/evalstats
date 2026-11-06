@@ -69,6 +69,12 @@ def test_pass_at_k_item_closed_form():
         assert pass_at_k_item(n, c, k) == pytest.approx(expected)
     with pytest.raises(ValueError):
         pass_at_k_item(3, 1, 4)
+    with pytest.raises(ValueError, match="between 0 and n_samples"):
+        pass_at_k_item(3, 7, 2)
+    with pytest.raises(ValueError, match="between 0 and n_samples"):
+        pass_at_k_item(3, -1, 1)
+    with pytest.raises(ValueError, match="at least 1"):
+        pass_at_k_item(3, 1, 0)
 
 
 def test_pass_at_k_interval_over_items():
