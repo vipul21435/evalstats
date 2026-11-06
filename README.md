@@ -47,9 +47,9 @@ every command below.
 $ evalstats summary examples/results.jsonl --cluster-by-prefix --method bca
 | model | n | clusters | mean % | 95% low | 95% high | method |
 |---|---:|---:|---:|---:|---:|---|
-| a | 120 | 8 | 43.3 | 34.3 | 53.0 | bca |
-| b | 120 | 8 | 48.3 | 39.0 | 60.6 | bca |
-| c | 120 | 8 | 46.7 | 31.3 | 60.4 | bca |
+| a | 120 | 8 | 43.3 | 34.4 | 53.1 | bca |
+| b | 120 | 8 | 48.3 | 39.1 | 60.6 | bca |
+| c | 120 | 8 | 46.7 | 31.5 | 60.5 | bca |
 ```
 
 Each model's interval is about 20 points wide and all three overlap. The paired
@@ -142,7 +142,8 @@ Notation: `n` items, scores `x_i`, mean `x̄`, `G` clusters.
   is given, with replacement; take the `α/2` and `1 - α/2` quantiles of the
   resampled means.
 - **BCa bootstrap**: the percentile bootstrap with a bias correction
-  `z0 = Φ⁻¹(share of resampled means below x̄)` and an acceleration `a` from
+  `z0 = Φ⁻¹(share of resampled means below x̄, ties counted at half weight)`
+  and an acceleration `a` from
   the jackknife (over items, or over clusters) skewness of the mean, as in
   Efron 1987. A degenerate bootstrap falls back to the percentile bounds.
 - **Paired difference**: a one-sample interval, by any method above, on the

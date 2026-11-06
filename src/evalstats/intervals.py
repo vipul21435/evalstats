@@ -155,9 +155,15 @@ def _jackknife_means(x: np.ndarray, c: np.ndarray | None) -> np.ndarray:
 
 
 def _bca_bounds(x, c, boot, est, level) -> tuple[float, float]:
-    """Bias-corrected and accelerated bounds (Efron 1987)."""
+    """Bias-corrected and accelerated bounds (Efron 1987).
+
+    The bias correction ``z0`` is the normal quantile of the share of
+    bootstrap means below the estimate, with ties counted at half weight.
+    With 0/1 scores many resampled means equal the estimate exactly; counting
+    them as "not below" would push ``z0`` and the whole interval down.
+    """
     alpha = 1 - level
-    prop = np.mean(boot < est)
+    prop = (np.mean(boot < est) + np.mean(boot <= est)) / 2
     if prop <= 0 or prop >= 1:
         # Degenerate bootstrap (for example all scores equal): fall back to
         # the percentile bounds, which collapse to the estimate.

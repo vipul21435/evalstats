@@ -113,3 +113,18 @@ def test_clustered_clt_coverage_with_cluster_effects():
         hits_cl += cl.low <= 0 <= cl.high
     assert hits_plain / reps < 0.6
     assert abs(hits_cl / reps - 0.90) < 0.06
+
+
+def test_bca_matches_scipy_on_binary_sample():
+    # 32 successes out of 100: many bootstrap means tie with the estimate,
+    # which is where the bias correction must count ties at half weight.
+    x = np.zeros(100)
+    x[:32] = 1.0
+    ours = mean_interval(x, method="bca", n_boot=20000, seed=1)
+    ref = stats.bootstrap(
+        (x,), np.mean, method="BCa", n_resamples=20000, confidence_level=0.95, random_state=2
+    ).confidence_interval
+    # the bootstrap distribution lives on a grid of 1/n = 0.01
+    assert ours.low == pytest.approx(ref.low, abs=0.01)
+    assert ours.high == pytest.approx(ref.high, abs=0.01)
+    assert ours.low < 0.32 < ours.high
