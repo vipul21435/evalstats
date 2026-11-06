@@ -72,6 +72,13 @@ def build_parser() -> argparse.ArgumentParser:
     lb.add_argument(
         "--models", nargs="+", help="restrict the leaderboard to these model names"
     )
+    lb.add_argument(
+        "--test",
+        choices=["auto", "mcnemar", "sign-flip", "cluster"],
+        default="auto",
+        help="per-pair test: auto (McNemar for 0/1 scores, else sign-flip), "
+        "or cluster (sign flips of whole clusters; needs clusters)",
+    )
 
     pw = sub.add_parser("power", help="items needed to detect a difference between two models")
     pw.add_argument("path", help="JSONL or CSV results file")
@@ -215,6 +222,7 @@ def cmd_leaderboard(args: argparse.Namespace) -> int:
         n_perm=args.n_perm,
         seed=args.seed,
         against_leader=args.against_leader,
+        test=args.test,
     )
     if args.json:
         emit(to_json(lb.to_dict()), args.out)
@@ -241,6 +249,8 @@ def cmd_leaderboard(args: argparse.Namespace) -> int:
             r.b,
             r.n,
             pct(r.difference),
+            pct(r.low),
+            pct(r.high),
             r.test,
             p_value(r.p_value),
             p_value(r.p_holm),
@@ -249,7 +259,8 @@ def cmd_leaderboard(args: argparse.Namespace) -> int:
         for r in lb.pairs
     ]
     pairs = markdown_table(
-        ["a", "b", "n", "a - b (points)", "test", "p", "p Holm", "p BH"], pair_rows
+        ["a", "b", "n", "a - b", f"{lvl}% low", f"{lvl}% high", "test", "p", "p Holm", "p BH"],
+        pair_rows,
     )
     top = ", ".join(lb.top_group())
     text = (

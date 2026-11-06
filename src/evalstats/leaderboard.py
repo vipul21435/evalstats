@@ -9,7 +9,9 @@ import numpy as np
 
 from evalstats.intervals import Interval, mean_interval
 from evalstats.io import ModelScores, align
-from evalstats.paired import is_binary, mcnemar_exact, sign_flip_test
+from evalstats.paired import cluster_sign_flip_test, is_binary, mcnemar_exact, sign_flip_test
+
+TESTS = ("auto", "mcnemar", "sign-flip", "cluster")
 
 
 def holm(p_values) -> np.ndarray:
@@ -57,6 +59,8 @@ class PairRow:
     b: str
     n: int
     difference: float
+    low: float
+    high: float
     test: str
     p_value: float
     p_holm: float
@@ -68,6 +72,8 @@ class PairRow:
             "b": self.b,
             "n": self.n,
             "difference": self.difference,
+            "low": self.low,
+            "high": self.high,
             "test": self.test,
             "p_value": self.p_value,
             "p_holm": self.p_holm,
@@ -111,14 +117,21 @@ def leaderboard(
     n_perm: int = 10000,
     seed: int | None = 0,
     against_leader: bool = False,
+    test: str = "auto",
 ) -> Leaderboard:
     """Rank models by mean score and test every pair on their shared items.
 
-    Binary pairs use the exact McNemar test; others the sign-flip permutation
-    test. The raw p-values of the whole family of pairs are then adjusted by
-    Holm and by Benjamini-Hochberg. With ``against_leader`` only the pairs
-    involving the top model are tested, which is a smaller family.
+    ``test`` chooses the per-pair test: ``auto`` runs the exact McNemar test
+    when both models have 0/1 scores and the item-level sign-flip test
+    otherwise; ``mcnemar`` and ``sign-flip`` force one of them; ``cluster``
+    runs the cluster-level sign-flip test, which needs cluster keys. Each
+    pair also gets an interval on the paired difference, cluster-robust when
+    clusters are known. The raw p-values of the whole family of pairs are
+    then adjusted by Holm and by Benjamini-Hochberg. With ``against_leader``
+    only the pairs involving the top model are tested, a smaller family.
     """
+    if test not in TESTS:
+        raise ValueError(f"unknown test {test!r}; choose from {', '.join(TESTS)}")
     ranked: list[tuple[str, Interval]] = []
     for name, m in models.items():
         iv = mean_interval(
@@ -131,22 +144,30 @@ def leaderboard(
         pairs = [(names[0], other) for other in names[1:]]
     else:
         pairs = list(combinations(names, 2))
-    raw: list[tuple[str, str, int, float, str, float]] = []
+    raw: list[tuple[str, str, int, Interval, str, float]] = []
     for a, b in pairs:
-        _, sa, sb, _ = align(models[a], models[b])
-        d = float(sa.mean() - sb.mean())
-        if is_binary(sa) and is_binary(sb):
+        _, sa, sb, clusters = align(models[a], models[b])
+        iv = mean_interval(
+            sa - sb, level=level, method=method, clusters=clusters, n_boot=n_boot, seed=seed
+        )
+        binary = is_binary(sa) and is_binary(sb)
+        name = test
+        if test == "auto":
+            name = "mcnemar" if binary else "sign-flip"
+        if name == "mcnemar":
             p = mcnemar_exact(sa, sb).p_value
-            test = "mcnemar"
-        else:
+        elif name == "sign-flip":
             p = sign_flip_test(sa - sb, n_perm=n_perm, seed=seed)
-            test = "sign-flip"
-        raw.append((a, b, int(sa.size), d, test, p))
+        else:
+            if clusters is None:
+                raise ValueError("the cluster test needs cluster keys")
+            p = cluster_sign_flip_test(sa - sb, clusters, n_perm=n_perm, seed=seed)
+        raw.append((a, b, int(sa.size), iv, name, p))
     ps = np.array([r[5] for r in raw])
     ph = holm(ps)
     pb = benjamini_hochberg(ps)
     rows = [
-        PairRow(a, b, n, d, t, float(p), float(h), float(q))
-        for (a, b, n, d, t, p), h, q in zip(raw, ph, pb, strict=True)
+        PairRow(a, b, n, iv.estimate, iv.low, iv.high, t, float(p), float(h), float(q))
+        for (a, b, n, iv, t, p), h, q in zip(raw, ph, pb, strict=True)
     ]
     return Leaderboard(ranked, rows, 1 - level)

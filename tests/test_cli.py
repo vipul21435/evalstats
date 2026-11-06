@@ -124,6 +124,8 @@ def test_leaderboard_and_power_commands(tmp_path, capsys):
     data = json.loads(capsys.readouterr().out)
     assert [m["model"] for m in data["models"]] == ["beta"] and data["pairs"] == []
     assert main(["leaderboard", str(p), "--models", "nope"]) == 2
+    assert main(["leaderboard", str(p), "--cluster-by-prefix", "--test", "cluster"]) == 0
+    assert "| cluster |" in capsys.readouterr().out
     out_md = tmp_path / "power.md"
     assert main(["power", str(p), "--a", "alpha", "--b", "beta", "--delta", "0.03",
                  "--cluster-by-prefix", "--out", str(out_md)]) == 0

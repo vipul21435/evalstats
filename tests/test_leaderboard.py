@@ -69,3 +69,26 @@ def test_leaderboard_against_leader_and_real_scores():
 def test_leaderboard_empty():
     lb = leaderboard({})
     assert lb.models == [] and lb.pairs == [] and lb.top_group() == []
+
+
+def test_leaderboard_pairs_carry_paired_interval():
+    lb = leaderboard(_models(), n_boot=200)
+    for r in lb.pairs:
+        assert r.low <= r.difference <= r.high
+    z_x = next(r for r in lb.pairs if {r.a, r.b} == {"z", "x"})
+    assert z_x.low > 0  # z is ranked first, so a - b is positive
+
+
+def test_leaderboard_test_choices():
+    models = _models()
+    cl = leaderboard(models, test="cluster", n_boot=100)
+    assert all(r.test == "cluster" for r in cl.pairs)
+    # five clusters: no cluster p-value can go below 2 / 2**5
+    assert min(r.p_value for r in cl.pairs) >= 2 / 32 - 1e-12
+    sf = leaderboard(models, test="sign-flip", n_boot=100, n_perm=300)
+    assert all(r.test == "sign-flip" for r in sf.pairs)
+    with pytest.raises(ValueError):
+        leaderboard(models, test="nope")
+    no_clusters = {k: ModelScores(k, v.items, v.scores, None) for k, v in models.items()}
+    with pytest.raises(ValueError):
+        leaderboard(no_clusters, test="cluster", n_boot=100)
