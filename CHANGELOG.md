@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- Bad input (missing file, malformed JSONL or CSV row, missing column,
+  out-of-range flag) prints a one-line `error:` message and exits with code 2;
+  row errors name the file and line.
+- BCa bias correction counts bootstrap means equal to the estimate at half
+  weight; checked against `scipy.stats.bootstrap(method="BCa")`.
+- `pass_at_k_item` rejects counts outside `0 <= c <= n` and `k < 1`.
+- `compare` names the two models in its output; summary tables show `-` for
+  bounds that need at least two items.
+- The public functions are re-exported from `evalstats`, array arguments are
+  typed with `numpy.typing.ArrayLike`, and the package ships `py.typed`.
+- `examples/fetch_swebench.py` pins the experiments repository commit and takes
+  `--ref`; `examples/coverage.py` prints the coverage simulation figures.
+
 ## 0.1.0
 
 First version.
