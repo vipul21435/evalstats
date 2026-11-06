@@ -230,8 +230,20 @@ def _interval_table(rows, level: float) -> str:
     return text
 
 
+def _load_scores(args: argparse.Namespace):
+    """Scores per model from ``args.path``; an empty result is an error."""
+    models = scores_by_model(
+        read_records(args.path), default_cluster=getattr(args, "cluster_by_prefix", False)
+    )
+    if not models:
+        raise ValueError(
+            f"no scored rows in {args.path} (a file of pass@k counts goes to evalstats passk)"
+        )
+    return models
+
+
 def cmd_summary(args: argparse.Namespace) -> int:
-    models = scores_by_model(read_records(args.path), default_cluster=args.cluster_by_prefix)
+    models = _load_scores(args)
     rows = _interval_rows(models, args)
     if args.json:
         emit(to_json(rows), args.out)
@@ -241,7 +253,7 @@ def cmd_summary(args: argparse.Namespace) -> int:
 
 
 def _two_models(args):
-    models = scores_by_model(read_records(args.path), default_cluster=args.cluster_by_prefix)
+    models = _load_scores(args)
     for name in (args.a, args.b):
         if name not in models:
             print(f"error: model {name!r} not in {args.path}", file=sys.stderr)
@@ -292,7 +304,7 @@ def cmd_compare(args: argparse.Namespace) -> int:
 
 
 def cmd_leaderboard(args: argparse.Namespace) -> int:
-    models = scores_by_model(read_records(args.path), default_cluster=args.cluster_by_prefix)
+    models = _load_scores(args)
     if args.models:
         missing = [m for m in args.models if m not in models]
         if missing:
@@ -318,7 +330,7 @@ def cmd_leaderboard(args: argparse.Namespace) -> int:
 
 
 def cmd_report(args: argparse.Namespace) -> int:
-    models = scores_by_model(read_records(args.path), default_cluster=args.cluster_by_prefix)
+    models = _load_scores(args)
     rep = full_report(
         models,
         source=Path(args.path).name,
