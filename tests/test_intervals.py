@@ -166,3 +166,76 @@ def test_leaderboard_table_shows_dashes_for_missing_bounds(tmp_path, capsys):
     assert main(["leaderboard", str(p), "--method", "bca"]) == 0
     out = capsys.readouterr().out
     assert "nan" not in out
+
+
+def _unequal_clusters(seed=6):
+    # one cluster holds about half the items, as django does in SWE-bench Verified
+    rng = np.random.default_rng(seed)
+    sizes = [60, 15, 9, 7, 5, 4, 3, 3, 2, 2, 1, 1]
+    c = np.repeat(np.arange(len(sizes)), sizes)
+    rate = rng.uniform(0.1, 0.9, len(sizes))[c]
+    x = (rng.random(c.size) < rate).astype(float)
+    return x, c
+
+
+def _slow_cluster_boot(x, c, n_boot, seed):
+    # resample whole clusters and take the plain mean of the items drawn,
+    # one resample at a time, from the same generator stream
+    rng = np.random.default_rng(seed)
+    keys = np.unique(c)
+    groups = [x[c == k] for k in keys]
+    out = []
+    for _ in range(n_boot):
+        pick = rng.integers(0, keys.size, size=keys.size)
+        out.append(np.concatenate([groups[i] for i in pick]).mean())
+    return np.array(out)
+
+
+def test_cluster_percentile_bootstrap_matches_slow_loop():
+    x, c = _unequal_clusters()
+    boot = _slow_cluster_boot(x, c, 400, seed=3)
+    ref = np.percentile(boot, [2.5, 97.5])
+    iv = mean_interval(x, method="percentile", clusters=c, n_boot=400, seed=3)
+    assert (iv.low, iv.high) == pytest.approx(tuple(ref), abs=1e-12)
+
+
+def test_cluster_bca_matches_brute_force():
+    x, c = _unequal_clusters()
+    boot = _slow_cluster_boot(x, c, 400, seed=3)
+    est = x.mean()
+    prop = (np.mean(boot < est) + np.mean(boot <= est)) / 2
+    z0 = stats.norm.ppf(prop)
+    # leave one cluster out, recompute the item mean
+    jack = np.array([x[c != k].mean() for k in np.unique(c)])
+    d = jack.mean() - jack
+    a = np.sum(d**3) / (6 * np.sum(d**2) ** 1.5)
+    assert abs(a) > 0.01  # unequal clusters give a real acceleration
+    qs = []
+    for z in stats.norm.ppf([0.025, 0.975]):
+        qs.append(stats.norm.cdf(z0 + (z0 + z) / (1 - a * (z0 + z))))
+    ref = np.percentile(boot, [100 * q for q in qs])
+    iv = mean_interval(x, method="bca", clusters=c, n_boot=400, seed=3)
+    assert (iv.low, iv.high) == pytest.approx(tuple(ref), abs=1e-12)
+
+
+def test_bca_matches_scipy_on_skewed_sample():
+    # exponential scores: a skewed sample where the acceleration is not near 0
+    x = np.random.default_rng(11).exponential(1.0, 30)
+    ours = mean_interval(x, method="bca", n_boot=40000, seed=1)
+    ref = stats.bootstrap(
+        (x,), np.mean, method="BCa", n_resamples=40000, confidence_level=0.95, random_state=2
+    ).confidence_interval
+    assert ours.low == pytest.approx(ref.low, abs=0.01)
+    assert ours.high == pytest.approx(ref.high, abs=0.015)
+    pct = mean_interval(x, method="percentile", n_boot=40000, seed=1)
+    # BCa moves both bounds up for a right-skewed mean
+    assert ours.low > pct.low + 0.01 and ours.high > pct.high + 0.01
+
+
+def test_bca_falls_back_to_percentile_when_bootstrap_is_one_sided():
+    # with one resample of [0, 0, 1] drawn as 0.0, every bootstrap mean is
+    # below the estimate and z0 would be infinite
+    x = np.array([0.0, 0.0, 1.0])
+    iv = mean_interval(x, method="bca", n_boot=1, seed=6)
+    pct = mean_interval(x, method="percentile", n_boot=1, seed=6)
+    assert (iv.low, iv.high) == (pct.low, pct.high) == (0.0, 0.0)

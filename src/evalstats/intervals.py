@@ -262,8 +262,9 @@ def _bca_bounds(x, c, boot, est, level) -> tuple[float, float]:
     alpha = 1 - level
     prop = (np.mean(boot < est) + np.mean(boot <= est)) / 2
     if prop <= 0 or prop >= 1:
-        # Degenerate bootstrap (for example all scores equal): fall back to
-        # the percentile bounds, which collapse to the estimate.
+        # Every bootstrap mean on one side of the estimate (only possible with
+        # a handful of resamples; all-equal scores give prop = 0.5): z0 would
+        # be infinite, so fall back to the percentile bounds.
         lo, hi = np.percentile(boot, [100 * alpha / 2, 100 * (1 - alpha / 2)])
         return float(lo), float(hi)
     z0 = stats.norm.ppf(prop)

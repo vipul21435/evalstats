@@ -169,7 +169,8 @@ Notation: `n` items, scores `x_i`, mean `x̄`, `G` clusters.
   `z0 = Φ⁻¹(share of resampled means below x̄, ties counted at half weight)`
   and an acceleration `a` from
   the jackknife (over items, or over clusters) skewness of the mean, as in
-  Efron 1987. A degenerate bootstrap falls back to the percentile bounds.
+  Efron 1987. When every bootstrap mean falls on one side of the estimate
+  (possible only with a handful of resamples) it falls back to the percentile bounds.
 - **Paired difference**: a one-sample interval, by any method above, on the
   per-item differences `d_i = a_i - b_i`. Pairing removes the item difficulty
   that both models share, which is why the paired interval is much narrower than
