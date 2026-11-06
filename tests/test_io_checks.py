@@ -92,3 +92,47 @@ def test_json_scores_survive_round_trip(tmp_path):
     p.write_text(json.dumps({"item": 1, "model": "a", "score": 0.5}) + "\n")
     (r,) = read_records(p)
     assert r.item == "1" and r.score == 0.5
+
+
+def test_blank_cluster_beside_filled_ones_is_an_error(tmp_path, capsys):
+    from evalstats.io import scores_by_model
+
+    rows = ["item,model,score,cluster"]
+    rows += [f"q{i:02d},m,{i % 2},r{i % 10}" for i in range(40)]
+    rows += [f"u{i:02d},m,{i % 2}," for i in range(20)]
+    path = tmp_path / "partial.csv"
+    path.write_text("\n".join(rows) + "\n")
+    with pytest.raises(ValueError, match="'u00' has no cluster"):
+        scores_by_model(read_records(path))
+    assert main(["summary", str(path)]) == 2
+    assert "u00" in capsys.readouterr().err
+
+
+def test_cluster_from_a_later_sample_row_counts():
+    from evalstats.io import scores_by_model
+
+    recs = [Record("q1", "m", 1.0), Record("q1", "m", 0.0, "r1"), Record("q2", "m", 1.0, "r2")]
+    assert scores_by_model(recs)["m"].clusters.tolist() == ["r1", "r2"]
+
+
+def test_align_takes_clusters_from_either_model_and_checks_them():
+    import numpy as np
+
+    from evalstats.io import ModelScores, align
+
+    items = ["x1", "x2", "y1"]
+    with_keys = ModelScores("a", items, np.array([1.0, 0.0, 1.0]), np.array(["x", "x", "y"]))
+    without = ModelScores("b", items, np.array([0.0, 0.0, 1.0]), None)
+    assert align(without, with_keys)[3].tolist() == ["x", "x", "y"]
+    assert align(with_keys, without)[3].tolist() == ["x", "x", "y"]
+    other = ModelScores("c", items, np.zeros(3), np.array(["x", "z", "y"]))
+    with pytest.raises(ValueError, match="'x2' is in cluster 'x' for model 'a'"):
+        align(with_keys, other)
+
+
+def test_prefix_cluster_splits_at_the_double_underscore():
+    from evalstats.io import scores_by_model
+
+    recs = [Record("my_repo__issue-1", "m", 1.0), Record("other__2", "m", 0.0)]
+    got = scores_by_model(recs, default_cluster=True)["m"].clusters.tolist()
+    assert got == ["my_repo", "other"]

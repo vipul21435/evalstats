@@ -48,7 +48,9 @@ git clone https://github.com/vipul21435/evalstats && cd evalstats && pip install
 ```
 
 The input is a JSONL or CSV file with one row per item and model: `item`,
-`model`, `score` (0/1 or real) and an optional `cluster` column. With
+`model`, `score` (0/1 or real) and an optional `cluster` column; a model
+whose items carry a cluster on some rows and none on others is an error, and
+two models that put a shared item in different clusters are an error. With
 `--cluster-by-prefix` the cluster is the part of the item id before the first
 `__`, the convention SWE-bench uses to prefix instance ids with their source
 repository. For pass@k a row can carry `n_samples` and `n_correct`, or the file

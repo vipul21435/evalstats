@@ -135,11 +135,18 @@ def scores_by_model(
         scores = np.array(
             [float(np.mean([r.score for r in rows[i]])) for i in items], dtype=float
         )
-        first = {i: rows[i][0] for i in items}
-        has_cluster = any(first[i].cluster is not None for i in items)
+        keys = {
+            i: next((r.cluster for r in rows[i] if r.cluster is not None), None) for i in items
+        }
         clusters: np.ndarray | None
-        if has_cluster:
-            clusters = np.array([first[i].cluster or "" for i in items])
+        if any(k is not None for k in keys.values()):
+            blank = next((i for i in items if keys[i] is None), None)
+            if blank is not None:
+                raise ValueError(
+                    f"model {model!r}: item {blank!r} has no cluster while other items "
+                    "have one; fill the cluster for every item or leave the column empty"
+                )
+            clusters = np.array([keys[i] for i in items])
         elif default_cluster:
             clusters = np.array([i.split("__", 1)[0] for i in items])
         else:
@@ -152,7 +159,11 @@ Aligned = tuple[list[str], np.ndarray, np.ndarray, "np.ndarray | None"]
 
 
 def align(a: ModelScores, b: ModelScores) -> Aligned:
-    """Restrict two models to their shared items, in a common order."""
+    """Restrict two models to their shared items, in a common order.
+
+    Cluster keys come from whichever model has them; when both do, they must
+    agree item by item.
+    """
     shared = sorted(set(a.items) & set(b.items))
     if not shared:
         raise ValueError(f"models {a.model!r} and {b.model!r} share no items")
@@ -160,7 +171,16 @@ def align(a: ModelScores, b: ModelScores) -> Aligned:
     ib = {it: k for k, it in enumerate(b.items)}
     sa = np.array([a.scores[ia[i]] for i in shared])
     sb = np.array([b.scores[ib[i]] for i in shared])
-    clusters = None if a.clusters is None else np.array([a.clusters[ia[i]] for i in shared])
+    ca = None if a.clusters is None else np.array([a.clusters[ia[i]] for i in shared])
+    cb = None if b.clusters is None else np.array([b.clusters[ib[i]] for i in shared])
+    if ca is not None and cb is not None:
+        for item, x, y in zip(shared, ca.tolist(), cb.tolist(), strict=True):
+            if str(x) != str(y):
+                raise ValueError(
+                    f"item {item!r} is in cluster {x!r} for model {a.model!r} "
+                    f"but in {y!r} for model {b.model!r}"
+                )
+    clusters = ca if ca is not None else cb
     return shared, sa, sb, clusters
 
 
