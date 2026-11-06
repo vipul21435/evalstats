@@ -231,8 +231,8 @@ evalstats implements those pieces for per-item result files.
 
 ### Tests
 
-`uv run pytest -q --cov=evalstats` runs 146 offline tests in about 2 s and
-reports 98 % line coverage (97 % for `cli.py`, 98 % or more for every other
+`uv run pytest -q --cov=evalstats` runs 174 offline tests in about 2 s and
+reports 99 % line coverage (98 % for `cli.py`, 99 % or more for every other
 module), measured on 2026-11-06. `uv run ruff check .` and `uv run mypy` run in
 CI as well.
 

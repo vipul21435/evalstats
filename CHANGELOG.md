@@ -33,6 +33,22 @@
 - `holm` and `benjamini_hochberg` check that p-values lie in [0, 1];
   `mean_interval` and `pass_at_k` check the level; cluster keys of mixed types
   are compared as strings. mypy runs in CI.
+- The leaderboard top group drops a model only when its significant pair
+  with the leader favours the leader; before, a model ahead of the leader on
+  the shared items could be dropped when the item sets differed. The
+  leaderboard output notes when models have different item sets.
+- Missing (NaN) bounds are no longer marked clipped.
+- A model with a cluster on some items and none on others is an error, as is
+  a shared item placed in different clusters by two models; `align` takes the
+  cluster keys from either model.
+- `passk` names the model, item and sample count when `k` is too large;
+  `power` gives the observed discordance when `delta` exceeds it, and flags a
+  detectable difference larger than the discordance; `compare` and `power`
+  refuse the same model as `--a` and `--b`.
+- A `plot` extra installs matplotlib; `examples/swebench.sh` skips the chart
+  when it is missing.
+- New tests pin the sign-flip p-values, the cluster bootstrap and BCa (against
+  slow loops and scipy), the design effect and the quickstart outputs.
 
 ## 0.1.0
 
