@@ -76,7 +76,7 @@ def cluster_keys(clusters: ArrayLike) -> np.ndarray:
     Keys of mixed types (strings with ``None`` or numbers) are compared as
     strings; a homogeneous array is returned as is.
     """
-    c = np.asarray(clusters).ravel()
+    c: np.ndarray = np.asarray(clusters).ravel()
     if c.dtype == object:
         c = np.array([str(k) for k in c])
     return c
