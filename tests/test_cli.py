@@ -77,3 +77,20 @@ def test_compare_markdown_and_json(tmp_path, capsys):
     data = json.loads(capsys.readouterr().out)
     assert data["n"] == 40 and data["mcnemar"]["discordant"] > 0
     assert main(["compare", str(p), "--a", "alpha", "--b", "nope"]) == 2
+
+
+def test_passk_command(tmp_path, capsys):
+    p = tmp_path / "k.jsonl"
+    rows = [
+        {"item": f"i{j}", "model": "m", "n_samples": 10, "n_correct": j % 4} for j in range(30)
+    ]
+    p.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    assert main(["passk", str(p), "--k", "2", "--n-boot", "200"]) == 0
+    out = capsys.readouterr().out
+    assert "pass@2" in out and "| m | 30 |" in out
+    assert main(["passk", str(p), "--json", "--n-boot", "100"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data[0]["k"] == 1 and data[0]["n"] == 30
+    empty = tmp_path / "e.jsonl"
+    empty.write_text(json.dumps({"item": "a", "model": "m", "score": 1}) + "\n")
+    assert main(["passk", str(empty)]) == 2

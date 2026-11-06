@@ -11,6 +11,7 @@ from evalstats import __version__
 from evalstats.intervals import mean_interval
 from evalstats.io import align, read_records, scores_by_model
 from evalstats.paired import paired_comparison
+from evalstats.passk import pass_at_k
 
 
 def _common(p: argparse.ArgumentParser) -> None:
@@ -45,6 +46,14 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--a", required=True, help="first model name")
     c.add_argument("--b", required=True, help="second model name")
     c.add_argument("--n-perm", type=int, default=10000, help="sign-flip permutations")
+
+    k = sub.add_parser("passk", help="unbiased pass@k from n_samples/n_correct rows, per model")
+    k.add_argument("path", help="JSONL or CSV results file with n_samples and n_correct")
+    k.add_argument("--k", type=int, default=1, help="k (default 1)")
+    k.add_argument("--level", type=float, default=0.95, help="confidence level (default 0.95)")
+    k.add_argument("--n-boot", type=int, default=2000, help="bootstrap resamples (default 2000)")
+    k.add_argument("--seed", type=int, default=0, help="random seed (default 0)")
+    k.add_argument("--json", action="store_true", help="print JSON instead of Markdown")
     return parser
 
 
@@ -120,12 +129,42 @@ def cmd_compare(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_passk(args: argparse.Namespace) -> int:
+    by_model: dict[str, list[tuple[int, int]]] = {}
+    for r in read_records(args.path):
+        if r.n_samples is None or r.n_correct is None:
+            continue
+        by_model.setdefault(r.model, []).append((r.n_samples, r.n_correct))
+    if not by_model:
+        print("error: no rows with n_samples and n_correct", file=sys.stderr)
+        return 2
+    rows = []
+    for name in sorted(by_model):
+        n, c = zip(*by_model[name], strict=True)
+        iv = pass_at_k(n, c, args.k, level=args.level, n_boot=args.n_boot, seed=args.seed)
+        rows.append({"model": name, "k": args.k, **iv.to_dict()})
+    if args.json:
+        print(json.dumps(rows, indent=2))
+        return 0
+    lvl = int(round(100 * args.level))
+    print(f"| model | items | pass@{args.k} % | {lvl}% low | {lvl}% high |")
+    print("|---|---:|---:|---:|---:|")
+    for r in rows:
+        print(
+            f"| {r['model']} | {r['n']} | {_pct(r['estimate'])} "
+            f"| {_pct(r['low'])} | {_pct(r['high'])} |"
+        )
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "summary":
         return cmd_summary(args)
     if args.command == "compare":
         return cmd_compare(args)
+    if args.command == "passk":
+        return cmd_passk(args)
     return 2  # pragma: no cover
 
 

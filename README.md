@@ -112,8 +112,8 @@ clustered by source repository.
 
 - Power and sample-size planning, the leaderboard mode and the Holm and
   Benjamini-Hochberg corrections are not implemented yet.
-- The pass@k estimator is available from Python (`evalstats.passk`) but not
-  from the CLI yet.
+- `evalstats passk` reads `n_samples` and `n_correct` per item; it does not
+  yet accept one row per sample.
 - The CLT interval is a normal approximation and is poor for very small `n`
   or means near 0 or 1; use `--method bca` there.
 - Cluster-robust errors need enough clusters (tens, not a handful) to be

@@ -9,4 +9,5 @@ First version.
 - Paired comparison of two models on shared items: paired-difference interval,
   exact McNemar test for binary scores, sign-flip permutation test.
 - Unbiased pass@k estimator with a bootstrap interval over items.
-- `evalstats summary` and `evalstats compare` commands reading JSONL or CSV.
+- `evalstats summary`, `evalstats compare` and `evalstats passk` commands
+  reading JSONL or CSV.
