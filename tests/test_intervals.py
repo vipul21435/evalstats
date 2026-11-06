@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from scipy import stats
 
-from evalstats.intervals import mean_interval, standard_error
+from evalstats.intervals import critical_value, mean_interval, standard_error
 
 
 def test_clt_matches_closed_form():
@@ -78,3 +78,38 @@ def test_cluster_bootstrap_reports_cluster_count():
     iv = mean_interval(x, method="percentile", clusters=clusters, n_boot=200)
     assert iv.n_clusters == 6
     assert iv.low < iv.estimate < iv.high
+
+
+def test_clustered_clt_uses_t_with_g_minus_one_df():
+    rng = np.random.default_rng(7)
+    x = rng.random(60)
+    clusters = np.repeat(np.arange(6), 10)
+    iv = mean_interval(x, level=0.95, clusters=clusters)
+    se = standard_error(x, clusters)
+    half = stats.t.ppf(0.975, df=5) * se
+    assert iv.high - iv.estimate == pytest.approx(half)
+    assert critical_value(0.95) == pytest.approx(stats.norm.ppf(0.975))
+    assert critical_value(0.95, 6) > critical_value(0.95, 60) > critical_value(0.95)
+    with pytest.raises(ValueError):
+        critical_value(1.5)
+
+
+def test_clustered_clt_coverage_with_cluster_effects():
+    """Seeded simulation: 20 unequal clusters sharing a cluster effect.
+
+    Scores are ``u_g + e_i`` with true mean 0. The item-level interval
+    ignores the dependence and under-covers badly; the cluster-robust t
+    interval stays near the nominal 90 %.
+    """
+    rng = np.random.default_rng(11)
+    sizes = np.array([60, 40, 30, 30, 25, 25, 20, 20, 20, 15] + [10] * 10)
+    clusters = np.repeat(np.arange(sizes.size), sizes)
+    reps, hits_plain, hits_cl = 400, 0, 0
+    for _ in range(reps):
+        x = rng.normal(0, 1, sizes.size)[clusters] + rng.normal(0, 1, clusters.size)
+        plain = mean_interval(x, level=0.90)
+        cl = mean_interval(x, level=0.90, clusters=clusters)
+        hits_plain += plain.low <= 0 <= plain.high
+        hits_cl += cl.low <= 0 <= cl.high
+    assert hits_plain / reps < 0.6
+    assert abs(hits_cl / reps - 0.90) < 0.06

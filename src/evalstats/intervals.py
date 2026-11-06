@@ -71,6 +71,23 @@ def standard_error(scores, clusters=None) -> float:
     return float(np.sqrt(var))
 
 
+def critical_value(level: float, n_clusters: int | None = None) -> float:
+    """Two-sided critical value for a CLT interval.
+
+    Without clusters this is the normal quantile. With ``G`` clusters the
+    cluster-robust variance is an average of only ``G`` cluster sums, so the
+    studentised mean is closer to a t distribution with ``G - 1`` degrees of
+    freedom; using the normal quantile with a dozen clusters gives intervals
+    that are too short.
+    """
+    if not 0 < level < 1:
+        raise ValueError("level must be in (0, 1)")
+    q = 0.5 + level / 2
+    if n_clusters is None or n_clusters < 2:
+        return float(stats.norm.ppf(q))
+    return float(stats.t.ppf(q, df=n_clusters - 1))
+
+
 def mean_interval(
     scores,
     *,
@@ -82,10 +99,11 @@ def mean_interval(
 ) -> Interval:
     """Interval for the mean of ``scores``.
 
-    ``clt`` uses a normal interval on the (optionally cluster-robust)
-    standard error. ``percentile`` and ``bca`` are nonparametric bootstraps
-    over items; with clusters they resample whole clusters so that the
-    dependence inside a cluster is preserved.
+    ``clt`` uses a normal interval on the plain standard error, or a
+    t(G - 1) interval on the cluster-robust one when ``clusters`` is given.
+    ``percentile`` and ``bca`` are nonparametric bootstraps over items; with
+    clusters they resample whole clusters so that the dependence inside a
+    cluster is preserved.
     """
     x = _as_array(scores)
     n = x.size
@@ -95,7 +113,7 @@ def mean_interval(
 
     if method == "clt":
         se = standard_error(x, c)
-        z = stats.norm.ppf(0.5 + level / 2)
+        z = critical_value(level, n_clusters)
         return Interval(
             est, float(est - z * se), float(est + z * se), level, "clt", n, se, n_clusters
         )
