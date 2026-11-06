@@ -1,0 +1,122 @@
+"""Paired comparison of two models scored on the same items."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import numpy as np
+from scipy import stats
+
+from evalstats.intervals import Interval, mean_interval
+
+
+@dataclass(frozen=True)
+class McNemar:
+    """Exact McNemar test on the discordant pairs of two binary score vectors.
+
+    ``b`` counts items model A solved and model B did not; ``c`` the reverse.
+    Under the null the discordant items split as ``Binomial(b + c, 1/2)``.
+    """
+
+    b: int
+    c: int
+    p_value: float
+
+    @property
+    def discordant(self) -> int:
+        return self.b + self.c
+
+    def to_dict(self) -> dict[str, float | int]:
+        return {"b": self.b, "c": self.c, "discordant": self.discordant, "p_value": self.p_value}
+
+
+@dataclass(frozen=True)
+class PairedResult:
+    """Everything the paired comparison computes."""
+
+    n: int
+    mean_a: float
+    mean_b: float
+    difference: Interval
+    permutation_p: float
+    mcnemar: McNemar | None
+
+    def to_dict(self) -> dict:
+        return {
+            "n": self.n,
+            "mean_a": self.mean_a,
+            "mean_b": self.mean_b,
+            "difference": self.difference.to_dict(),
+            "permutation_p": self.permutation_p,
+            "mcnemar": None if self.mcnemar is None else self.mcnemar.to_dict(),
+        }
+
+
+def mcnemar_exact(a, b) -> McNemar:
+    """Two-sided exact McNemar test for binary scores ``a`` and ``b``."""
+    a = np.asarray(a, dtype=float).ravel()
+    b = np.asarray(b, dtype=float).ravel()
+    if a.shape != b.shape:
+        raise ValueError("score vectors must have the same length")
+    if not (set(np.unique(a)) <= {0.0, 1.0} and set(np.unique(b)) <= {0.0, 1.0}):
+        raise ValueError("McNemar needs 0/1 scores")
+    n_b = int(np.sum((a == 1) & (b == 0)))
+    n_c = int(np.sum((a == 0) & (b == 1)))
+    m = n_b + n_c
+    if m == 0:
+        return McNemar(n_b, n_c, 1.0)
+    k = min(n_b, n_c)
+    p = min(1.0, 2.0 * stats.binom.cdf(k, m, 0.5))
+    return McNemar(n_b, n_c, float(p))
+
+
+def sign_flip_test(diffs, *, n_perm: int = 10000, seed: int | None = 0) -> float:
+    """Two-sided sign-flip permutation p-value for paired differences.
+
+    Under the null each item's difference is as likely to have either sign,
+    so the mean difference is compared with the distribution obtained by
+    flipping signs at random. Returns ``(count + 1) / (n_perm + 1)``.
+    """
+    d = np.asarray(diffs, dtype=float).ravel()
+    if d.size == 0:
+        raise ValueError("no differences")
+    observed = abs(d.mean())
+    rng = np.random.default_rng(seed)
+    signs = rng.choice([-1.0, 1.0], size=(n_perm, d.size))
+    perm = np.abs((signs * d).mean(axis=1))
+    count = int(np.sum(perm >= observed - 1e-12))
+    return (count + 1) / (n_perm + 1)
+
+
+def is_binary(x) -> bool:
+    return bool(set(np.unique(np.asarray(x, dtype=float))) <= {0.0, 1.0})
+
+
+def paired_comparison(
+    a,
+    b,
+    *,
+    level: float = 0.95,
+    method: str = "clt",
+    clusters=None,
+    n_boot: int = 2000,
+    n_perm: int = 10000,
+    seed: int | None = 0,
+) -> PairedResult:
+    """Compare model A with model B on the same items.
+
+    ``a`` and ``b`` are aligned score vectors. The difference interval is a
+    one-sample interval on ``a - b`` (cluster-robust when ``clusters`` is
+    given). The McNemar test is run only when both vectors are binary.
+    """
+    a = np.asarray(a, dtype=float).ravel()
+    b = np.asarray(b, dtype=float).ravel()
+    if a.shape != b.shape:
+        raise ValueError("score vectors must have the same length")
+    d = a - b
+    diff = mean_interval(
+        d, level=level, method=method, clusters=clusters, n_boot=n_boot, seed=seed
+    )
+    perm_p = sign_flip_test(d, n_perm=n_perm, seed=seed)
+    mc = mcnemar_exact(a, b) if is_binary(a) and is_binary(b) else None
+    return PairedResult(int(a.size), float(a.mean()), float(b.mean()), diff, perm_p, mc)
