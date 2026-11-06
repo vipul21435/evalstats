@@ -57,12 +57,16 @@ def _coerce(row: object, where: str) -> Record:
 
 
 def read_records(path: str | Path) -> list[Record]:
-    """Read a JSONL (``.jsonl``/``.json``) or CSV results file.
+    """Read a JSONL (``.jsonl``/``.json``) or CSV results file, UTF-8 encoded.
 
     A malformed row raises ``ValueError`` naming the file and line number.
     """
     p = Path(path)
-    text = p.read_text(encoding="utf-8")
+    try:
+        # utf-8-sig drops the byte-order mark some spreadsheet tools write
+        text = p.read_text(encoding="utf-8-sig")
+    except UnicodeDecodeError:
+        raise ValueError(f"{p}: not UTF-8 text") from None
     out: list[Record] = []
     if p.suffix.lower() == ".csv":
         reader = csv.DictReader(text.splitlines())
