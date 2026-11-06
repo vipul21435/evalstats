@@ -127,6 +127,12 @@ def plan_from_scores(
     differences (real scores) is read off the data. The design effect is the
     squared ratio of the cluster-robust to the plain standard error of the
     difference; ``n_items_clustered`` inflates the plain answer by it.
+
+    With few clusters the estimated design effect is noisy and can fall
+    below 1 by chance. It is reported as estimated, but the clustered item
+    count and the power on the observed items use ``max(1, design_effect)``,
+    so clustering never makes the plan more optimistic than independent
+    items would.
     """
     a = np.asarray(a, dtype=float).ravel()
     b = np.asarray(b, dtype=float).ravel()
@@ -146,9 +152,10 @@ def plan_from_scores(
         se_cl = standard_error(d, clusters)
         if se_plain > 0 and not math.isnan(se_cl):
             deff = float((se_cl / se_plain) ** 2)
-    n_cl = int(math.ceil(n_plain * deff))
+    inflation = max(1.0, deff)
+    n_cl = int(math.ceil(n_plain * inflation))
     n_obs = int(a.size)
-    sd_eff = sd * math.sqrt(deff)
+    sd_eff = sd * math.sqrt(inflation)
     pw = power_for_items(n_obs, delta, sd_eff, alpha=alpha) if sd_eff > 0 else None
     mdd = detectable_difference(n_obs, sd_eff, alpha=alpha, power=power) if sd_eff > 0 else None
     return PowerPlan(

@@ -86,6 +86,20 @@ def test_plan_with_clusters_inflates_by_design_effect():
     assert plan.n_items_clustered == math.ceil(plan.n_items * plan.design_effect)
 
 
+def test_design_effect_below_one_does_not_shrink_the_plan():
+    # differences alternate in sign inside each cluster, so cluster sums are
+    # near zero and the estimated design effect is far below 1
+    clusters = np.repeat(np.arange(10), 20)
+    a = np.tile([1.0, 0.0], 100)
+    b = np.zeros(200)
+    b[::4] = 1.0
+    plan = plan_from_scores(a, b, 0.05, clusters=clusters)
+    assert plan.design_effect < 1
+    assert plan.n_items_clustered == plan.n_items
+    plain = plan_from_scores(a, b, 0.05)
+    assert plan.power_at_observed == pytest.approx(plain.power_at_observed)
+
+
 def test_plan_identical_scores():
     plan = plan_from_scores([1, 0, 1, 0], [1, 0, 1, 0], 0.1)
     assert plan.n_items == 0 and plan.power_at_observed is None
