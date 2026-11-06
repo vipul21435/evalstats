@@ -194,7 +194,10 @@ evalstats implements those pieces for per-item result files.
 
 Data: the per-instance `resolved` flags of 12 SWE-bench Verified submissions in
 the public experiments repository, https://github.com/SWE-bench/experiments
-(`evaluation/verified/<submission>/per_instance_details.json`). Eleven are the
+(`evaluation/verified/<submission>/per_instance_details.json`), read at commit
+`40f164d5b8f1d249bf95a6df8b74b577fd8e519d`, the head of its main branch on
+2026-11-06; the fetch script pins that commit and takes `--ref` to read another.
+Eleven are the
 mini-SWE-agent v2.0.0 runs of different models dated 2026-02-17, plus one
 v1.17.2 run. For each submission the fetch script compares the resolved rate
 computed from the per-instance file with the rate in the submission's

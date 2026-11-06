@@ -27,12 +27,12 @@ def _place(cache: Path, sub: str, resolved: list[bool], reported: float | None) 
 
 def test_fetch_writes_rows_and_skips_mismatched_submission(tmp_path, capsys):
     mod = _load()
-    cache = tmp_path / "submissions"
-    cache.mkdir()
+    cache = tmp_path / "submissions" / "abc123"
+    cache.mkdir(parents=True)
     _place(cache, "20250101_agent_good", [True, False, True, True], 75.0)
     _place(cache, "20250101_agent_broken", [False] * 4, 50.0)
     _place(cache, "nodate", [True, False], None)
-    argv = ["--out", str(tmp_path), "--submissions"]
+    argv = ["--out", str(tmp_path), "--ref", "abc123", "--submissions"]
     argv += ["20250101_agent_good", "20250101_agent_broken", "nodate"]
     assert mod.main(argv) == 0
     rows = [json.loads(line) for line in (tmp_path / "swebench_verified.jsonl").open()]
@@ -46,3 +46,11 @@ def test_reported_rate_parsing(tmp_path):
     _place(tmp_path, "s", [True], 69.6)
     assert mod.reported_rate("s", tmp_path) == pytest.approx(69.6)
     assert mod.label("20260217_mini-v2.0.0_glm-5-high") == "mini-v2.0.0_glm-5-high"
+
+
+def test_urls_use_the_pinned_ref():
+    mod = _load()
+    assert len(mod.DEFAULT_REF) == 40
+    assert mod.RAW.format(ref=mod.DEFAULT_REF).startswith(
+        "https://raw.githubusercontent.com/SWE-bench/experiments/" + mod.DEFAULT_REF
+    )

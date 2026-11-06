@@ -31,7 +31,11 @@ import sys
 import urllib.request
 from pathlib import Path
 
-RAW = "https://raw.githubusercontent.com/SWE-bench/experiments/main/evaluation/verified"
+RAW = "https://raw.githubusercontent.com/SWE-bench/experiments/{ref}/evaluation/verified"
+# The commit of the experiments repository the README's numbers come from
+# (the head of its main branch on 2026-11-06). Pinning it keeps the results
+# reproducible if a per-instance file is later edited upstream.
+DEFAULT_REF = "40f164d5b8f1d249bf95a6df8b74b577fd8e519d"
 
 DEFAULT_SUBMISSIONS = [
     "20251211_mini-v1.17.2_gpt-5.2-2025-12-11-high",
@@ -61,15 +65,15 @@ def _cached(url: str, path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def fetch(submission: str, cache: Path) -> dict:
+def fetch(submission: str, cache: Path, ref: str = DEFAULT_REF) -> dict:
     """The per-instance details of one submission, cached on disk."""
-    url = f"{RAW}/{submission}/per_instance_details.json"
+    url = f"{RAW.format(ref=ref)}/{submission}/per_instance_details.json"
     return json.loads(_cached(url, cache / f"{submission}.json"))
 
 
-def reported_rate(submission: str, cache: Path) -> float | None:
+def reported_rate(submission: str, cache: Path, ref: str = DEFAULT_REF) -> float | None:
     """The ``resolved`` percentage in the submission's metadata, if present."""
-    url = f"{RAW}/{submission}/metadata.yaml"
+    url = f"{RAW.format(ref=ref)}/{submission}/metadata.yaml"
     text = _cached(url, cache / f"{submission}.metadata.yaml")
     m = re.search(r"^\s*resolved:\s*([0-9.]+)\s*$", text, flags=re.MULTILINE)
     return float(m.group(1)) if m else None
@@ -80,6 +84,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out", required=True, help="directory for the cache and the JSONL file")
     ap.add_argument("--submissions", nargs="+", default=DEFAULT_SUBMISSIONS)
     ap.add_argument(
+        "--ref",
+        default=DEFAULT_REF,
+        help="commit, tag or branch of the experiments repository (default: the pinned commit)",
+    )
+    ap.add_argument(
         "--tolerance",
         type=float,
         default=0.2,
@@ -87,15 +96,16 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = ap.parse_args(argv)
     out = Path(args.out).expanduser()
-    cache = out / "submissions"
+    # one cache folder per ref, so files from two refs never mix
+    cache = out / "submissions" / args.ref[:12]
     cache.mkdir(parents=True, exist_ok=True)
     target = out / "swebench_verified.jsonl"
     n_rows = 0
     with target.open("w", encoding="utf-8") as fh:
         for sub in args.submissions:
-            details = fetch(sub, cache)
+            details = fetch(sub, cache, args.ref)
             computed = 100 * sum(bool(v["resolved"]) for v in details.values()) / len(details)
-            reported = reported_rate(sub, cache)
+            reported = reported_rate(sub, cache, args.ref)
             if reported is not None and abs(reported - computed) > args.tolerance:
                 print(
                     f"{sub}: skipped, reported {reported:.1f} % but per-instance file "
