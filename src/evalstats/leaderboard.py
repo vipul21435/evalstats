@@ -211,4 +211,4 @@ def leaderboard(
         )
         for (a, b, n, iv, t, p), h, q in zip(raw, ph, pb, strict=True)
     ]
-    return Leaderboard(ranked, rows, 1 - level)
+    return Leaderboard(ranked, rows, round(1 - level, 12))

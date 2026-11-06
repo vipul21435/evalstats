@@ -1,8 +1,15 @@
 import numpy as np
 import pytest
 
+from evalstats.intervals import Interval
 from evalstats.io import ModelScores
-from evalstats.leaderboard import benjamini_hochberg, holm, leaderboard
+from evalstats.leaderboard import (
+    Leaderboard,
+    PairRow,
+    benjamini_hochberg,
+    holm,
+    leaderboard,
+)
 
 
 def test_holm_hand_worked():
@@ -122,3 +129,30 @@ def test_leaderboard_notes_differing_item_sets():
     text = leaderboard_tables(leaderboard(_subset_full()))
     assert "different item sets" in text
     assert "different item sets" not in leaderboard_tables(leaderboard(_models()))
+
+
+def _row(a, b, diff, p, p_holm, p_bh):
+    return PairRow(a, b, 100, diff, diff - 0.05, diff + 0.05, "mcnemar", p, p_holm, p_bh)
+
+
+def _iv(est):
+    return Interval(est, est - 0.1, est + 0.1, 0.95, "clt", 100, 0.05, None)
+
+
+def test_top_group_uses_holm_not_bh():
+    # raw p 0.03 and 0.04: Holm gives 0.06 for both, BH gives 0.04 for both
+    lb = Leaderboard(
+        [("l", _iv(0.6)), ("m", _iv(0.5)), ("n", _iv(0.4))],
+        [_row("l", "m", 0.1, 0.03, 0.06, 0.04), _row("l", "n", 0.2, 0.04, 0.06, 0.04)],
+        0.05,
+    )
+    assert lb.top_group() == ["l", "m", "n"]
+    # at alpha 0.1 both pairs separate
+    lb10 = Leaderboard(lb.models, lb.pairs, 0.1)
+    assert lb10.top_group() == ["l"]
+
+
+def test_leaderboard_alpha_follows_level():
+    assert leaderboard(_models(), n_boot=50).alpha == 0.05
+    lb = leaderboard(_models(), level=0.9, n_boot=50)
+    assert lb.alpha == 0.1 and lb.to_dict()["alpha"] == 0.1
