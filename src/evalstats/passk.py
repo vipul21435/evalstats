@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import ArrayLike
 
-from evalstats.intervals import Interval
+from evalstats.intervals import Interval, row_chunks
 
 
 def pass_at_k_item(n: int, c: int, k: int) -> float:
@@ -47,7 +47,12 @@ def pass_at_k(
     per_item = np.array([pass_at_k_item(int(ni), int(ci), k) for ni, ci in zip(n, c, strict=True)])
     est = float(per_item.mean())
     rng = np.random.default_rng(seed)
-    idx = rng.integers(0, per_item.size, size=(n_boot, per_item.size))
-    boot = per_item[idx].mean(axis=1)
+    size = per_item.size
+    boot = np.concatenate(
+        [
+            per_item[rng.integers(0, size, size=(m, size))].mean(axis=1)
+            for m in row_chunks(n_boot, size)
+        ]
+    )
     lo, hi = np.percentile(boot, [100 * (0.5 - level / 2), 100 * (0.5 + level / 2)])
     return Interval(est, float(lo), float(hi), level, "percentile", int(per_item.size))

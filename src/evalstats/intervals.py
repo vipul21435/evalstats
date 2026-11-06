@@ -10,6 +10,22 @@ from numpy.typing import ArrayLike
 from scipy import stats
 
 Method = Literal["clt", "percentile", "bca"]
+"""Interval method: ``clt`` (normal or t), ``percentile`` or ``bca`` bootstrap."""
+
+CHUNK_ELEMENTS = 1 << 22
+"""Most random draws held in memory at once by the bootstraps and permutation tests."""
+
+
+def row_chunks(rows: int, width: int) -> list[int]:
+    """Split ``rows`` draws of ``width`` values into chunks of at most
+    :data:`CHUNK_ELEMENTS` values.
+
+    Drawing the chunks one after another from the same generator yields the
+    same numbers as one ``(rows, width)`` draw, so results do not depend on
+    the chunk size; only the peak memory does.
+    """
+    step = max(1, CHUNK_ELEMENTS // max(1, width))
+    return [min(step, rows - start) for start in range(0, rows, step)]
 
 
 @dataclass(frozen=True)
@@ -149,18 +165,24 @@ def mean_interval(
     return Interval(est, lo, hi, level, "bca", n, None, n_clusters)
 
 
-def _bootstrap_means(x: np.ndarray, c: np.ndarray | None, n_boot: int, seed: int | None):
+def _bootstrap_means(
+    x: np.ndarray, c: np.ndarray | None, n_boot: int, seed: int | None
+) -> np.ndarray:
     rng = np.random.default_rng(seed)
     n = x.size
     if c is None:
-        idx = rng.integers(0, n, size=(n_boot, n))
-        return x[idx].mean(axis=1)
+        return np.concatenate(
+            [x[rng.integers(0, n, size=(m, n))].mean(axis=1) for m in row_chunks(n_boot, n)]
+        )
     _, inv = np.unique(c, return_inverse=True)
     g = int(inv.max()) + 1
     sums = np.bincount(inv, weights=x, minlength=g)
     sizes = np.bincount(inv, minlength=g).astype(float)
-    pick = rng.integers(0, g, size=(n_boot, g))
-    return sums[pick].sum(axis=1) / sizes[pick].sum(axis=1)
+    out = []
+    for m in row_chunks(n_boot, g):
+        pick = rng.integers(0, g, size=(m, g))
+        out.append(sums[pick].sum(axis=1) / sizes[pick].sum(axis=1))
+    return np.concatenate(out)
 
 
 def _jackknife_means(x: np.ndarray, c: np.ndarray | None) -> np.ndarray:

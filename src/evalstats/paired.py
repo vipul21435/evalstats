@@ -8,7 +8,7 @@ import numpy as np
 from numpy.typing import ArrayLike
 from scipy import stats
 
-from evalstats.intervals import Interval, Method, finite_array, mean_interval
+from evalstats.intervals import Interval, Method, finite_array, mean_interval, row_chunks
 
 
 @dataclass(frozen=True)
@@ -87,9 +87,11 @@ def sign_flip_test(diffs: ArrayLike, *, n_perm: int = 10000, seed: int | None = 
         raise ValueError("no differences")
     observed = abs(d.mean())
     rng = np.random.default_rng(seed)
-    signs = rng.choice([-1.0, 1.0], size=(n_perm, d.size))
-    perm = np.abs((signs * d).mean(axis=1))
-    count = int(np.sum(perm >= observed - 1e-12))
+    count = 0
+    for m in row_chunks(n_perm, d.size):
+        signs = rng.choice([-1.0, 1.0], size=(m, d.size))
+        perm = np.abs((signs * d).mean(axis=1))
+        count += int(np.sum(perm >= observed - 1e-12))
     return (count + 1) / (n_perm + 1)
 
 
@@ -129,8 +131,10 @@ def cluster_sign_flip_test(
         stat = np.abs(signs @ sums)
         return float(np.mean(stat >= observed - tol))
     rng = np.random.default_rng(seed)
-    signs = rng.choice([-1.0, 1.0], size=(n_perm, g))
-    count = int(np.sum(np.abs(signs @ sums) >= observed - tol))
+    count = 0
+    for m in row_chunks(n_perm, g):
+        signs = rng.choice([-1.0, 1.0], size=(m, g))
+        count += int(np.sum(np.abs(signs @ sums) >= observed - tol))
     return (count + 1) / (n_perm + 1)
 
 
