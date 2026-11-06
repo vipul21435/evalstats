@@ -127,3 +127,43 @@ def test_paired_comparison_with_clusters_reports_cluster_test():
     assert res.cluster_permutation_p is not None
     assert res.cluster_permutation_p >= 2 / 16
     assert res.to_dict()["n_clusters"] == 4
+
+
+def test_paired_interval_coverage_simulation():
+    """Seeded simulation: two correlated 0/1 models with a true 4-point gap.
+
+    Each item has a latent difficulty shared by both models; the nominal 90 %
+    paired CLT interval should cover the true difference about 90 % of the
+    time, and be much narrower than the unpaired interval would be.
+    """
+    rng = np.random.default_rng(12)
+    n, reps, hits = 300, 400, 0
+    width = []
+    for _ in range(reps):
+        u = rng.random(n)
+        a = (u < 0.64).astype(float)  # P(a) = 0.64
+        b = (u < 0.60).astype(float)  # P(b) = 0.60, nested in a
+        noise = rng.random(n) < 0.1  # independent re-draws on 10 % of items
+        a[noise] = rng.random(noise.sum()) < 0.64
+        res = paired_comparison(a, b, level=0.90, n_boot=10, n_perm=10)
+        d = res.difference
+        width.append(d.high - d.low)
+        # true difference: 0.9 * 0.04 + 0.1 * (0.64 - 0.60) = 0.04
+        hits += d.low <= 0.04 <= d.high
+    assert abs(hits / reps - 0.90) < 0.05
+    assert np.mean(width) < 0.1
+
+
+def test_mcnemar_size_under_null():
+    """Seeded simulation: exchangeable models, 5 % test, rejection rate <= 5 %."""
+    rng = np.random.default_rng(13)
+    reps, rejections = 1000, 0
+    for _ in range(reps):
+        u = rng.random(200)
+        a = (u < 0.5).astype(float)
+        b = a.copy()
+        swap = rng.random(200) < 0.15
+        b[swap] = rng.random(swap.sum()) < 0.5
+        a[swap] = rng.random(swap.sum()) < 0.5
+        rejections += mcnemar_exact(a, b).p_value < 0.05
+    assert rejections / reps <= 0.06
