@@ -263,6 +263,9 @@ def cmd_summary(args: argparse.Namespace) -> int:
 
 
 def _two_models(args):
+    if args.a == args.b:
+        print(f"error: --a and --b name the same model {args.a!r}", file=sys.stderr)
+        return None
     models = _load_scores(args)
     for name in (args.a, args.b):
         if name not in models:
@@ -415,12 +418,17 @@ def cmd_power(args: argparse.Namespace) -> int:
             f"smallest difference detectable on {plan.n_observed} items: "
             f"{pct(plan.detectable_at_observed)} points",
         ]
+        if plan.discordance is not None and plan.detectable_at_observed > plan.discordance:
+            lines.append(
+                "that is more than the observed discordance: no difference of that size is "
+                f"possible while the models disagree on {pct(plan.discordance)} % of items"
+            )
     emit("\n".join(lines), args.out)
     return 0
 
 
 def cmd_passk(args: argparse.Namespace) -> int:
-    by_model = passk_counts(read_records(args.path))
+    by_model = passk_counts(read_records(args.path), min_samples=args.k)
     if not by_model:
         print("error: no rows with n_samples and n_correct, or per-sample scores", file=sys.stderr)
         return 2

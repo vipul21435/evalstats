@@ -184,8 +184,13 @@ def align(a: ModelScores, b: ModelScores) -> Aligned:
     return shared, sa, sb, clusters
 
 
-def passk_counts(records: list[Record]) -> dict[str, list[tuple[int, int]]]:
+def passk_counts(
+    records: list[Record], *, min_samples: int | None = None
+) -> dict[str, list[tuple[int, int]]]:
     """Per model, ``(n_samples, n_correct)`` for each item, in item order.
+
+    With ``min_samples`` (the ``k`` of pass@k), an item with fewer samples
+    raises ``ValueError`` naming the model, the item and its sample count.
 
     A row carrying ``n_samples`` and ``n_correct`` is taken as is. Otherwise
     every scored row of the same (model, item) counts as one sample, so a
@@ -214,5 +219,12 @@ def passk_counts(records: list[Record]) -> dict[str, list[tuple[int, int]]]:
                     f"model {model!r}, item {item!r}: both an n_samples row and per-sample rows"
                 )
             counts[item] = (len(scores), int(sum(scores)))
+        if min_samples is not None:
+            for item in sorted(counts):
+                if counts[item][0] < min_samples:
+                    raise ValueError(
+                        f"model {model!r}, item {item!r}: {counts[item][0]} samples, "
+                        f"fewer than k = {min_samples}"
+                    )
         out[model] = [counts[i] for i in sorted(counts)]
     return out

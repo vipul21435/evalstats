@@ -224,7 +224,7 @@ def _bad_inputs(tmp_path):
         "column": (["summary", str(no_model)], "nomodel.jsonl:1: missing column 'model'"),
         "number": (["summary", str(bad_score)], "badscore.csv:2: column 'score'"),
         "power": (["power", "--discordance", "0.02", "--delta", "0.03"], "cannot exceed"),
-        "passk": (["passk", str(pk), "--k", "5"], "k must not exceed"),
+        "passk": (["passk", str(pk), "--k", "5"], "3 samples, fewer than k = 5"),
         "cluster": (["leaderboard", str(fixture), "--test", "cluster"], "--cluster-by-prefix"),
         "mcnemar": (["leaderboard", str(real), "--test", "mcnemar"], "McNemar needs 0/1"),
     }

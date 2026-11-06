@@ -154,6 +154,12 @@ def plan_from_scores(
                 "the two models agree on every shared item; the observed discordance "
                 "cannot plan a sample size, pass --discordance"
             )
+        if delta > disc:
+            raise ValueError(
+                f"delta {delta:g} exceeds the observed discordance {disc:.4g} "
+                f"({int(np.sum(d != 0))} of {d.size} items differ): no difference that large "
+                "is possible at this discordance; pass --discordance to plan for another rate"
+            )
         n_plain = items_for_discordance(delta, disc, alpha=alpha, power=power)
     else:
         if sd <= 1e-12 * max(1.0, float(np.abs(d).max())):

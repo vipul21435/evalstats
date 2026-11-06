@@ -20,7 +20,7 @@ def pass_at_k_item(n: int, c: int, k: int) -> float:
     if not 0 <= c <= n:
         raise ValueError(f"n_correct must be between 0 and n_samples, got {c} of {n}")
     if k > n:
-        raise ValueError("k must not exceed the number of samples")
+        raise ValueError(f"k = {k} exceeds the {n} samples of the item")
     if n - c < k:
         return 1.0
     return float(1.0 - np.prod(1.0 - k / np.arange(n - c + 1, n + 1)))

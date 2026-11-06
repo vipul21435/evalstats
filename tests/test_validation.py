@@ -44,3 +44,45 @@ def test_cluster_keys_may_include_none():
     assert standard_error(d, keys) > 0
     iv = mean_interval(d, method="bca", clusters=keys, n_boot=200)
     assert iv.n_clusters == 4  # None is a key of its own
+
+
+def _write_small(tmp_path):
+    import json
+
+    rows = []
+    for i in range(40):
+        rows.append({"item": f"q{i:02d}", "model": "A", "score": int(i < 20)})
+        rows.append({"item": f"q{i:02d}", "model": "B", "score": int(0 < i < 20)})
+    path = tmp_path / "small.jsonl"
+    path.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+    return str(path)
+
+
+def test_power_error_reports_observed_discordance(tmp_path, capsys):
+    from evalstats.cli import main
+
+    path = _write_small(tmp_path)
+    assert main(["power", path, "--a", "A", "--b", "B", "--delta", "0.03"]) == 2
+    err = capsys.readouterr().err
+    assert "observed discordance 0.025" in err and "--discordance" in err
+    assert main(["power", path, "--a", "A", "--b", "B", "--delta", "0.02"]) == 0
+    assert "more than the observed discordance" in capsys.readouterr().out
+
+
+def test_compare_refuses_the_same_model_twice(tmp_path, capsys):
+    from evalstats.cli import main
+
+    path = _write_small(tmp_path)
+    for cmd in (["compare"], ["power", "--delta", "0.01"]):
+        assert main([cmd[0], path, "--a", "A", "--b", "A", *cmd[1:]]) == 2
+        assert "same model 'A'" in capsys.readouterr().err
+
+
+def test_passk_error_names_model_item_and_samples(tmp_path, capsys):
+    from evalstats.cli import main
+
+    path = tmp_path / "samples.csv"
+    path.write_text("item,model,n_samples,n_correct\nq1,m,10,3\nq2,m,10,4\n")
+    assert main(["passk", str(path), "--k", "11"]) == 2
+    err = capsys.readouterr().err
+    assert "'m'" in err and "'q1'" in err and "10 samples" in err and "k = 11" in err
