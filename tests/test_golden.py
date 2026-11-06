@@ -41,6 +41,8 @@ def test_quickstart_summary_bca(capsys):
         "434 (independent items), 434 (with the design effect)",
         "power for 3.0 points on the observed 120 items: 0.32",
         "smallest difference detectable on 120 items: 5.6 points",
+        "that is more than the observed discordance: no difference of that size is possible "
+        "while the models disagree on 5.0 % of items",
     ],
 )
 def test_quickstart_power(capsys, line):

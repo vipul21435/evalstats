@@ -133,6 +133,7 @@ design effect from clusters: 1.00
 items to detect 3.0 points at alpha 0.05, power 0.8: 434 (independent items), 434 (with the design effect)
 power for 3.0 points on the observed 120 items: 0.32
 smallest difference detectable on 120 items: 5.6 points
+that is more than the observed discordance: no difference of that size is possible while the models disagree on 5.0 % of items
 ```
 
 Before any data exist, the same formula runs from an assumed discordance:
@@ -231,7 +232,7 @@ evalstats implements those pieces for per-item result files.
 
 ### Tests
 
-`uv run pytest -q --cov=evalstats` runs 174 offline tests in about 2 s and
+`uv run pytest -q --cov=evalstats` runs 175 offline tests in about 2 s and
 reports 99 % line coverage (98 % for `cli.py`, 99 % or more for every other
 module), measured on 2026-11-06. `uv run ruff check .` and `uv run mypy` run in
 CI as well.
