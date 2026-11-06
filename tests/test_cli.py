@@ -112,3 +112,29 @@ def test_passk_per_sample_rows(tmp_path, capsys):
     bad.write_text(json.dumps({"item": "a", "model": "m", "score": 0.5}) + "\n")
     with pytest.raises(ValueError):
         main(["passk", str(bad)])
+
+
+def test_leaderboard_and_power_commands(tmp_path, capsys):
+    p = tmp_path / "r.jsonl"
+    _write_fixture(p)
+    assert main(["leaderboard", str(p), "--cluster-by-prefix", "--n-boot", "100"]) == 0
+    out = capsys.readouterr().out
+    assert "| rank | model |" in out and "p Holm" in out and "not separated" in out
+    assert main(["leaderboard", str(p), "--json", "--against-leader", "--models", "beta"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert [m["model"] for m in data["models"]] == ["beta"] and data["pairs"] == []
+    assert main(["leaderboard", str(p), "--models", "nope"]) == 2
+    out_md = tmp_path / "power.md"
+    assert main(["power", str(p), "--a", "alpha", "--b", "beta", "--delta", "0.03",
+                 "--cluster-by-prefix", "--out", str(out_md)]) == 0
+    text = out_md.read_text()
+    assert "observed discordance" in text and "design effect" in text
+    assert main(["power", str(p), "--a", "alpha", "--b", "beta", "--json"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["n_items"] > 0 and data["design_effect"] == 1.0
+    assert main(["power", str(p), "--a", "alpha", "--b", "gamma"]) == 2
+    assert main(["summary", str(p), "--json", "--out", str(tmp_path / "s.json")]) == 0
+    assert json.loads((tmp_path / "s.json").read_text())[0]["model"] == "alpha"
+    assert main(["compare", str(p), "--a", "alpha", "--b", "beta", "--out",
+                 str(tmp_path / "c.md")]) == 0
+    assert "McNemar" in (tmp_path / "c.md").read_text()
