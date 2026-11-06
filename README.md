@@ -37,7 +37,8 @@ pip install git+https://github.com/vipul21435/evalstats
 ```
 
 Python 3.10 or newer; the dependencies are numpy and scipy. The plotting example
-also needs matplotlib.
+also needs matplotlib, the `plot` extra (`pip install -e .[plot]` in a clone);
+without it `examples/swebench.sh` runs every command and skips the chart.
 
 ## Quickstart
 

@@ -23,5 +23,9 @@ evalstats leaderboard "$F" --cluster-by-prefix --test cluster
 evalstats summary "$F" --cluster-by-prefix --method bca
 python -c "import json,sys,collections;c=collections.Counter(json.loads(l)['item'].split('__')[0] for l in open(sys.argv[1]) if '4-5-opus' in l);print(c.most_common(3))" "$F"
 evalstats report "$F" --cluster-by-prefix --out "$DATA/report.md"
+if ! python -c "import matplotlib" 2>/dev/null; then
+  echo "matplotlib is not installed (pip install -e .[plot]); skipping the chart" >&2
+  exit 0
+fi
 python examples/plot_intervals.py "$F" --out docs/swebench_intervals.png --strip mini-v2.0.0_ \
   --rename mini-v1.17.2_gpt-5.2-2025-12-11-high=v1.17.2_gpt-5.2
