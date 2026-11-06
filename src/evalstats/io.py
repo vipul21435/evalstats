@@ -107,3 +107,29 @@ def align(a: ModelScores, b: ModelScores) -> Aligned:
     sb = np.array([b.scores[ib[i]] for i in shared])
     clusters = None if a.clusters is None else np.array([a.clusters[ia[i]] for i in shared])
     return shared, sa, sb, clusters
+
+
+def passk_counts(records: list[Record]) -> dict[str, list[tuple[int, int]]]:
+    """Per model, ``(n_samples, n_correct)`` for each item.
+
+    A row carrying ``n_samples`` and ``n_correct`` is taken as is. Otherwise
+    every scored row of the same (model, item) counts as one sample, so a
+    file with one row per sample works too; scores must then be 0/1.
+    """
+    direct: dict[str, dict[str, tuple[int, int]]] = {}
+    samples: dict[str, dict[str, list[float]]] = {}
+    for r in records:
+        if r.n_samples is not None and r.n_correct is not None:
+            direct.setdefault(r.model, {})[r.item] = (r.n_samples, r.n_correct)
+        elif r.score is not None:
+            if r.score not in (0.0, 1.0):
+                raise ValueError("per-sample pass@k rows need 0/1 scores")
+            samples.setdefault(r.model, {}).setdefault(r.item, []).append(r.score)
+    out: dict[str, list[tuple[int, int]]] = {}
+    for model, items in direct.items():
+        out[model] = [items[i] for i in sorted(items)]
+    for model, items in samples.items():
+        if model in out:
+            continue
+        out[model] = [(len(items[i]), int(sum(items[i]))) for i in sorted(items)]
+    return out
