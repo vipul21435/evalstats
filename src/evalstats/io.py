@@ -68,23 +68,33 @@ def scores_by_model(
 ) -> dict[str, ModelScores]:
     """Group records by model; items are sorted so models align by item id.
 
+    When a model has several rows for the same item (several samples), the
+    item's score is the mean of those rows. The item, not the sample, stays
+    the unit of resampling, so repeated samples narrow an interval only as
+    far as they reduce the noise in each item's score.
+
     With ``default_cluster`` and no ``cluster`` column, the cluster is the
     part of the item id before the first ``__``, which is how many benchmarks
     prefix item ids with their source repository.
     """
-    by_model: dict[str, dict[str, Record]] = {}
+    by_model: dict[str, dict[str, list[Record]]] = {}
     for r in records:
         if r.score is None:
             continue
-        by_model.setdefault(r.model, {})[r.item] = r
+        by_model.setdefault(r.model, {}).setdefault(r.item, []).append(r)
     out: dict[str, ModelScores] = {}
     for model, rows in by_model.items():
         items = sorted(rows)
-        scores = np.array([rows[i].score for i in items], dtype=float)
-        has_cluster = any(rows[i].cluster is not None for i in items)
+        # several rows for one (model, item) are samples: score the item by
+        # their mean, which for 0/1 scores is the per-item pass@1 estimate
+        scores = np.array(
+            [float(np.mean([r.score for r in rows[i]])) for i in items], dtype=float
+        )
+        first = {i: rows[i][0] for i in items}
+        has_cluster = any(first[i].cluster is not None for i in items)
         clusters: np.ndarray | None
         if has_cluster:
-            clusters = np.array([rows[i].cluster or "" for i in items])
+            clusters = np.array([first[i].cluster or "" for i in items])
         elif default_cluster:
             clusters = np.array([i.split("__", 1)[0] for i in items])
         else:

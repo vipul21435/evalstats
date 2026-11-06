@@ -34,7 +34,9 @@ The input is a JSONL or CSV file with one row per item and model: `item`,
 `--cluster-by-prefix` the cluster is the part of the item id before the first
 `__`, the convention SWE-bench uses to prefix instance ids with their source
 repository. For pass@k a row can carry `n_samples` and `n_correct`, or the file
-can hold one row per sample.
+can hold one row per sample; the other commands score such an item by the mean
+of its rows (the per-item pass@1 estimate) and keep the item as the unit of
+resampling.
 
 `examples/make_fixture.py` writes a synthetic file with three models on 120
 items in 8 clusters. Model `b` is model `a` with six extra solves; model `c` is

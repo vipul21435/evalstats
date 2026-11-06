@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from evalstats.cli import main
-from evalstats.io import align, read_records, scores_by_model
+from evalstats.io import Record, align, read_records, scores_by_model
 
 
 def _write_fixture(path, fmt="jsonl"):
@@ -44,14 +44,26 @@ def test_align_restricts_to_shared_items():
         *(dict(item=f"i{k}", model="x", score=1) for k in range(5)),
         *(dict(item=f"i{k}", model="y", score=0) for k in range(2, 8)),
     ]
-    from evalstats.io import Record
-
     models = scores_by_model([Record(**r) for r in recs])
     shared, sa, sb, cl = align(models["x"], models["y"])
     assert shared == ["i2", "i3", "i4"]
     assert sa.tolist() == [1, 1, 1] and sb.tolist() == [0, 0, 0] and cl is None
     with pytest.raises(ValueError):
         align(models["x"], scores_by_model([Record("z", "w", 1.0)])["w"])
+
+
+def test_repeated_rows_are_averaged_per_item():
+    recs = [
+        Record("i1", "m", 1.0, "r1"),
+        Record("i1", "m", 0.0, "r1"),
+        Record("i1", "m", 1.0, "r1"),
+        Record("i2", "m", 0.0, "r2"),
+        Record("i2", "m", None),
+    ]
+    m = scores_by_model(recs)["m"]
+    assert m.items == ["i1", "i2"]
+    assert m.scores.tolist() == pytest.approx([2 / 3, 0.0])
+    assert m.clusters is not None and m.clusters.tolist() == ["r1", "r2"]
 
 
 def test_summary_markdown_and_json(tmp_path, capsys):
