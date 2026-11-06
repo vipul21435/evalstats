@@ -119,10 +119,16 @@ def leaderboard_tables(lb: Leaderboard) -> str:
         pair_rows,
     )
     top = ", ".join(lb.top_group())
-    return (
+    text = (
         f"{ranks}\n\n{pairs}\n\n"
         f"not separated from the leader at Holm-adjusted alpha {lb.alpha:g}: {top}"
     )
+    if any(iv.clipped for _, iv in lb.models) or any(r.clipped for r in lb.pairs):
+        text += (
+            "\n\nSome CLT bounds fell outside the feasible range and were clipped to it; "
+            "prefer --method bca with so few items."
+        )
+    return text
 
 
 def neighbour_plans(

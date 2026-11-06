@@ -13,6 +13,7 @@ from evalstats.intervals import (
     Method,
     cluster_keys,
     finite_array,
+    is_binary,
     mean_interval,
     row_chunks,
 )
@@ -148,11 +149,6 @@ def cluster_sign_flip_test(
     return (count + 1) / (n_perm + 1)
 
 
-def is_binary(x: ArrayLike) -> bool:
-    """True when every value is 0 or 1."""
-    return bool(set(np.unique(np.asarray(x, dtype=float))) <= {0.0, 1.0})
-
-
 def paired_comparison(
     a: ArrayLike,
     b: ArrayLike,
@@ -168,17 +164,27 @@ def paired_comparison(
 
     ``a`` and ``b`` are aligned score vectors. The difference interval is a
     one-sample interval on ``a - b`` (cluster-robust when ``clusters`` is
-    given). The McNemar test is run only when both vectors are binary; the
-    cluster sign-flip test only when ``clusters`` is given.
+    given; clipped to ``[-1, 1]`` for 0/1 scores). The McNemar test is run
+    only when both vectors are binary; the cluster sign-flip test only when
+    ``clusters`` is given.
     """
     a = finite_array(a)
     b = finite_array(b)
     if a.shape != b.shape:
         raise ValueError("score vectors must have the same length")
     d = a - b
-    diff = mean_interval(d, level=level, method=method, clusters=clusters, n_boot=n_boot, seed=seed)
+    binary = is_binary(a) and is_binary(b)
+    diff = mean_interval(
+        d,
+        level=level,
+        method=method,
+        clusters=clusters,
+        n_boot=n_boot,
+        seed=seed,
+        bounds=(-1.0, 1.0) if binary else None,
+    )
     perm_p = sign_flip_test(d, n_perm=n_perm, seed=seed)
-    mc = mcnemar_exact(a, b) if is_binary(a) and is_binary(b) else None
+    mc = mcnemar_exact(a, b) if binary else None
     cl_p = None
     n_cl = None
     if clusters is not None:

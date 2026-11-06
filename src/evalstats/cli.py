@@ -17,7 +17,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from evalstats import __version__
-from evalstats.intervals import mean_interval
+from evalstats.intervals import is_binary, mean_interval
 from evalstats.io import align, passk_counts, read_records, scores_by_model
 from evalstats.leaderboard import leaderboard
 from evalstats.paired import paired_comparison
@@ -42,6 +42,13 @@ DESCRIPTION = (
     "leaderboard (every pair with Holm and Benjamini-Hochberg corrections), "
     "report (all of it plus power plans), power (items needed to detect a difference) "
     "and passk. Output is Markdown, or JSON with --json."
+)
+
+
+CLIPPED_NOTE = (
+    "Some CLT bounds fell outside the range the mean can take and were clipped to it "
+    "(0 to 100 %, or -100 to 100 points for a difference); the normal approximation is "
+    "poor here, so prefer --method bca."
 )
 
 
@@ -200,6 +207,7 @@ def _interval_rows(models, args):
             clusters=m.clusters,
             n_boot=args.n_boot,
             seed=args.seed,
+            bounds=(0.0, 1.0) if is_binary(m.scores) else None,
         )
         rows.append({"model": name, **iv.to_dict()})
     return rows
@@ -227,6 +235,8 @@ def _interval_table(rows, level: float) -> str:
             "\n\nA bound shown as - means fewer than 2 items (or 2 clusters) "
             "to estimate the spread."
         )
+    if any(r["clipped"] for r in rows):
+        text += "\n\n" + CLIPPED_NOTE
     return text
 
 
@@ -289,6 +299,8 @@ def cmd_compare(args: argparse.Namespace) -> int:
         f"{lvl}% interval [{bound(d.low)}, {bound(d.high)}] ({d.method})",
         f"sign-flip permutation p: {p_value(res.permutation_p)}",
     ]
+    if d.clipped:
+        lines.insert(4, CLIPPED_NOTE)
     if res.cluster_permutation_p is not None:
         lines.append(
             f"cluster sign-flip p ({res.n_clusters} clusters): {p_value(res.cluster_permutation_p)}"

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import math
+from dataclasses import dataclass, replace
 from typing import Literal
 
 import numpy as np
@@ -40,6 +41,7 @@ class Interval:
     n: int
     stderr: float | None = None
     n_clusters: int | None = None
+    clipped: bool = False
 
     def to_dict(self) -> dict[str, float | int | str | None]:
         """All fields as a JSON-ready dict."""
@@ -52,6 +54,7 @@ class Interval:
             "n": self.n,
             "stderr": self.stderr,
             "n_clusters": self.n_clusters,
+            "clipped": self.clipped,
         }
 
 
@@ -77,6 +80,11 @@ def cluster_keys(clusters: ArrayLike) -> np.ndarray:
     if c.dtype == object:
         c = np.array([str(k) for k in c])
     return c
+
+
+def is_binary(x: ArrayLike) -> bool:
+    """True when every value is 0 or 1."""
+    return bool(set(np.unique(np.asarray(x, dtype=float))) <= {0.0, 1.0})
 
 
 def check_level(level: float) -> None:
@@ -143,6 +151,7 @@ def mean_interval(
     clusters: ArrayLike | None = None,
     n_boot: int = 2000,
     seed: int | None = 0,
+    bounds: tuple[float, float] | None = None,
 ) -> Interval:
     """Interval for the mean of ``scores``.
 
@@ -154,7 +163,31 @@ def mean_interval(
 
     With fewer than two items, or fewer than two clusters, there is no
     spread to estimate and both bounds are NaN whatever the method.
+
+    ``bounds`` is the range the mean can take, for example ``(0, 1)`` for
+    0/1 scores. A CLT bound outside it (which happens with few items or a
+    mean near the edge) is clipped to it and the interval is marked
+    ``clipped``; the bootstrap bounds never leave the range of the data.
     """
+    iv = _mean_interval(scores, level, method, clusters, n_boot, seed)
+    if bounds is None:
+        return iv
+    lo_b, hi_b = bounds
+    low = max(iv.low, lo_b) if not math.isnan(iv.low) else iv.low
+    high = min(iv.high, hi_b) if not math.isnan(iv.high) else iv.high
+    if low == iv.low and high == iv.high:
+        return iv
+    return replace(iv, low=low, high=high, clipped=True)
+
+
+def _mean_interval(
+    scores: ArrayLike,
+    level: float,
+    method: Method,
+    clusters: ArrayLike | None,
+    n_boot: int,
+    seed: int | None,
+) -> Interval:
     check_level(level)
     x = _as_array(scores)
     n = x.size

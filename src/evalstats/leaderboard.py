@@ -75,6 +75,7 @@ class PairRow:
     p_value: float
     p_holm: float
     p_bh: float
+    clipped: bool = False
 
     def to_dict(self) -> dict:
         """All fields as a JSON-ready dict."""
@@ -89,6 +90,7 @@ class PairRow:
             "p_value": self.p_value,
             "p_holm": self.p_holm,
             "p_bh": self.p_bh,
+            "clipped": self.clipped,
         }
 
 
@@ -149,7 +151,13 @@ def leaderboard(
     ranked: list[tuple[str, Interval]] = []
     for name, m in models.items():
         iv = mean_interval(
-            m.scores, level=level, method=method, clusters=m.clusters, n_boot=n_boot, seed=seed
+            m.scores,
+            level=level,
+            method=method,
+            clusters=m.clusters,
+            n_boot=n_boot,
+            seed=seed,
+            bounds=(0.0, 1.0) if is_binary(m.scores) else None,
         )
         ranked.append((name, iv))
     ranked.sort(key=lambda t: (-t[1].estimate, t[0]))
@@ -161,10 +169,16 @@ def leaderboard(
     raw: list[tuple[str, str, int, Interval, str, float]] = []
     for a, b in pairs:
         _, sa, sb, clusters = align(models[a], models[b])
-        iv = mean_interval(
-            sa - sb, level=level, method=method, clusters=clusters, n_boot=n_boot, seed=seed
-        )
         binary = is_binary(sa) and is_binary(sb)
+        iv = mean_interval(
+            sa - sb,
+            level=level,
+            method=method,
+            clusters=clusters,
+            n_boot=n_boot,
+            seed=seed,
+            bounds=(-1.0, 1.0) if binary else None,
+        )
         name = test
         if test == "auto":
             name = "mcnemar" if binary else "sign-flip"
@@ -184,7 +198,9 @@ def leaderboard(
     ph = holm(ps)
     pb = benjamini_hochberg(ps)
     rows = [
-        PairRow(a, b, n, iv.estimate, iv.low, iv.high, t, float(p), float(h), float(q))
+        PairRow(
+            a, b, n, iv.estimate, iv.low, iv.high, t, float(p), float(h), float(q), iv.clipped
+        )
         for (a, b, n, iv, t, p), h, q in zip(raw, ph, pb, strict=True)
     ]
     return Leaderboard(ranked, rows, 1 - level)
