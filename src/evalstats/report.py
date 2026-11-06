@@ -12,14 +12,38 @@ def pct(x: float) -> str:
     return f"{100 * x:.1f}"
 
 
+def p_value(p: float) -> str:
+    """A p-value with four decimals, or ``<0.0001`` below that."""
+    return "<0.0001" if p < 1e-4 else f"{p:.4f}"
+
+
+def _is_number(v: object) -> bool:
+    if isinstance(v, bool):
+        return False
+    if isinstance(v, (int, float)):
+        return True
+    if isinstance(v, str):
+        try:
+            float(v.lstrip("<"))
+        except ValueError:
+            return False
+        return True
+    return False
+
+
 def markdown_table(headers: Sequence[str], rows: Sequence[Sequence[object]]) -> str:
-    """A pipe table; numeric columns (every cell an int or float) are right-aligned."""
+    """A pipe table.
+
+    A column is right-aligned when every cell is a number (an int, a float or
+    a string such as ``"12.3"`` or ``"<0.0001"``) or a missing value (``None``
+    or ``"-"``), and at least one cell is a number.
+    """
     cols = len(headers)
-    numeric = [
-        all(isinstance(r[j], (int, float)) and not isinstance(r[j], bool) for r in rows)
-        and bool(rows)
-        for j in range(cols)
-    ]
+    numeric = []
+    for j in range(cols):
+        cells = [r[j] for r in rows]
+        present = [v for v in cells if v is not None and v != "-"]
+        numeric.append(bool(present) and all(_is_number(v) for v in present))
     align = ["---:" if numeric[j] else "---" for j in range(cols)]
     lines = ["| " + " | ".join(str(h) for h in headers) + " |", "|" + "|".join(align) + "|"]
     for r in rows:

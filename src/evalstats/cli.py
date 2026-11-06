@@ -20,7 +20,7 @@ from evalstats.leaderboard import leaderboard
 from evalstats.paired import paired_comparison
 from evalstats.passk import pass_at_k
 from evalstats.power import plan_from_scores
-from evalstats.report import emit, markdown_table, pct, to_json
+from evalstats.report import emit, markdown_table, p_value, pct, to_json
 
 
 def _output(p: argparse.ArgumentParser) -> None:
@@ -182,13 +182,13 @@ def cmd_compare(args: argparse.Namespace) -> int:
         f"{args.b}: {pct(res.mean_b)} %",
         f"difference (a - b): {pct(d.estimate)} points, "
         f"{lvl}% interval [{pct(d.low)}, {pct(d.high)}] ({d.method})",
-        f"sign-flip permutation p: {res.permutation_p:.4f}",
+        f"sign-flip permutation p: {p_value(res.permutation_p)}",
     ]
     if res.mcnemar is not None:
         mc = res.mcnemar
         lines.append(
             f"McNemar exact: a-only {mc.b}, b-only {mc.c}, "
-            f"discordant {mc.discordant}, p = {mc.p_value:.4f}"
+            f"discordant {mc.discordant}, p = {p_value(mc.p_value)}"
         )
     emit("\n".join(lines), args.out)
     return 0
@@ -231,7 +231,16 @@ def cmd_leaderboard(args: argparse.Namespace) -> int:
         ["rank", "model", "n", "clusters", "mean %", f"{lvl}% low", f"{lvl}% high"], rank_rows
     )
     pair_rows = [
-        [r.a, r.b, r.n, pct(r.difference), r.test, r.p_value, r.p_holm, r.p_bh]
+        [
+            r.a,
+            r.b,
+            r.n,
+            pct(r.difference),
+            r.test,
+            p_value(r.p_value),
+            p_value(r.p_holm),
+            p_value(r.p_bh),
+        ]
         for r in lb.pairs
     ]
     pairs = markdown_table(
