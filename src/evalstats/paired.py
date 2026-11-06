@@ -40,6 +40,8 @@ class PairedResult:
     difference: Interval
     permutation_p: float
     mcnemar: McNemar | None
+    cluster_permutation_p: float | None = None
+    n_clusters: int | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -49,6 +51,8 @@ class PairedResult:
             "difference": self.difference.to_dict(),
             "permutation_p": self.permutation_p,
             "mcnemar": None if self.mcnemar is None else self.mcnemar.to_dict(),
+            "cluster_permutation_p": self.cluster_permutation_p,
+            "n_clusters": self.n_clusters,
         }
 
 
@@ -88,6 +92,42 @@ def sign_flip_test(diffs, *, n_perm: int = 10000, seed: int | None = 0) -> float
     return (count + 1) / (n_perm + 1)
 
 
+def cluster_sign_flip_test(
+    diffs, clusters, *, n_perm: int = 10000, max_exact: int = 16, seed: int | None = 0
+) -> float:
+    """Two-sided sign-flip test that flips whole clusters at once.
+
+    The per-item differences are summed within each cluster, and the null is
+    that each cluster sum is as likely to have either sign. This keeps the
+    dependence inside a cluster (a repository where one model does well on
+    every issue counts once, not once per issue). With ``G <= max_exact``
+    clusters all ``2**G`` sign patterns are enumerated and the p-value is
+    exact; above that ``n_perm`` random patterns are drawn and the p-value is
+    ``(count + 1) / (n_perm + 1)``.
+
+    With ``G`` clusters the smallest attainable p-value is ``2 / 2**G``, so a
+    handful of clusters cannot give a small p-value whatever the data.
+    """
+    d = np.asarray(diffs, dtype=float).ravel()
+    c = np.asarray(clusters).ravel()
+    if d.size == 0 or c.size != d.size:
+        raise ValueError("differences and clusters must align and be non-empty")
+    _, inv = np.unique(c, return_inverse=True)
+    g = int(inv.max()) + 1
+    sums = np.bincount(inv, weights=d, minlength=g)
+    observed = abs(sums.sum())
+    tol = 1e-9 * max(1.0, float(np.abs(sums).sum()))
+    if g <= max_exact:
+        codes = np.arange(2**g)[:, None]
+        signs = 1.0 - 2.0 * ((codes >> np.arange(g)) & 1)
+        stat = np.abs(signs @ sums)
+        return float(np.mean(stat >= observed - tol))
+    rng = np.random.default_rng(seed)
+    signs = rng.choice([-1.0, 1.0], size=(n_perm, g))
+    count = int(np.sum(np.abs(signs @ sums) >= observed - tol))
+    return (count + 1) / (n_perm + 1)
+
+
 def is_binary(x) -> bool:
     return bool(set(np.unique(np.asarray(x, dtype=float))) <= {0.0, 1.0})
 
@@ -107,7 +147,8 @@ def paired_comparison(
 
     ``a`` and ``b`` are aligned score vectors. The difference interval is a
     one-sample interval on ``a - b`` (cluster-robust when ``clusters`` is
-    given). The McNemar test is run only when both vectors are binary.
+    given). The McNemar test is run only when both vectors are binary; the
+    cluster sign-flip test only when ``clusters`` is given.
     """
     a = np.asarray(a, dtype=float).ravel()
     b = np.asarray(b, dtype=float).ravel()
@@ -119,4 +160,11 @@ def paired_comparison(
     )
     perm_p = sign_flip_test(d, n_perm=n_perm, seed=seed)
     mc = mcnemar_exact(a, b) if is_binary(a) and is_binary(b) else None
-    return PairedResult(int(a.size), float(a.mean()), float(b.mean()), diff, perm_p, mc)
+    cl_p = None
+    n_cl = None
+    if clusters is not None:
+        cl_p = cluster_sign_flip_test(d, clusters, n_perm=n_perm, seed=seed)
+        n_cl = int(np.unique(np.asarray(clusters)).size)
+    return PairedResult(
+        int(a.size), float(a.mean()), float(b.mean()), diff, perm_p, mc, cl_p, n_cl
+    )

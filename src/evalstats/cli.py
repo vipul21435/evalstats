@@ -184,6 +184,11 @@ def cmd_compare(args: argparse.Namespace) -> int:
         f"{lvl}% interval [{pct(d.low)}, {pct(d.high)}] ({d.method})",
         f"sign-flip permutation p: {p_value(res.permutation_p)}",
     ]
+    if res.cluster_permutation_p is not None:
+        lines.append(
+            f"cluster sign-flip p ({res.n_clusters} clusters): "
+            f"{p_value(res.cluster_permutation_p)}"
+        )
     if res.mcnemar is not None:
         mc = res.mcnemar
         lines.append(

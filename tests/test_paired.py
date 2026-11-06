@@ -1,7 +1,12 @@
 import numpy as np
 import pytest
 
-from evalstats.paired import mcnemar_exact, paired_comparison, sign_flip_test
+from evalstats.paired import (
+    cluster_sign_flip_test,
+    mcnemar_exact,
+    paired_comparison,
+    sign_flip_test,
+)
 from evalstats.passk import pass_at_k, pass_at_k_item
 
 
@@ -75,3 +80,50 @@ def test_pass_at_k_interval_over_items():
     assert iv.low <= iv.estimate <= iv.high
     with pytest.raises(ValueError):
         pass_at_k([10, 10], [1], 1)
+
+
+def test_cluster_sign_flip_hand_worked():
+    # three clusters with sums +3, +1, -1: total 3.
+    # sign patterns give |total| in {3, 1, 5, 3, 3, 5, 1, 3}; six of eight are >= 3.
+    d = [1, 1, 1, 1, -1]
+    clusters = ["x", "x", "x", "y", "z"]
+    assert cluster_sign_flip_test(d, clusters) == pytest.approx(6 / 8)
+    # all clusters favour one side: only the identity and its mirror reach the total
+    assert cluster_sign_flip_test([1, 1, 1, 1], ["a", "b", "c", "d"]) == pytest.approx(2 / 16)
+    with pytest.raises(ValueError):
+        cluster_sign_flip_test([1, 0], ["a"])
+
+
+def test_cluster_sign_flip_random_branch_matches_exact():
+    rng = np.random.default_rng(8)
+    clusters = np.repeat(np.arange(14), 5)
+    d = rng.normal(0.2, 1, clusters.size)
+    exact = cluster_sign_flip_test(d, clusters)
+    approx = cluster_sign_flip_test(d, clusters, max_exact=4, n_perm=20000, seed=1)
+    assert approx == pytest.approx(exact, abs=0.015)
+
+
+def test_cluster_sign_flip_size_under_null():
+    """Seeded simulation: with 10 clusters and a cluster effect, the item-level
+    sign-flip test rejects far too often at 5 %; the cluster test does not."""
+    rng = np.random.default_rng(9)
+    clusters = np.repeat(np.arange(10), 12)
+    reps, rej_item, rej_cl = 200, 0, 0
+    for r in range(reps):
+        d = rng.normal(0, 1, 10)[clusters] + rng.normal(0, 0.5, clusters.size)
+        rej_item += sign_flip_test(d, n_perm=500, seed=r) < 0.05
+        rej_cl += cluster_sign_flip_test(d, clusters) < 0.05
+    assert rej_item / reps > 0.3
+    assert rej_cl / reps < 0.09
+
+
+def test_paired_comparison_with_clusters_reports_cluster_test():
+    rng = np.random.default_rng(10)
+    a = (rng.random(80) < 0.6).astype(float)
+    b = (rng.random(80) < 0.5).astype(float)
+    clusters = np.repeat(["r1", "r2", "r3", "r4"], 20)
+    res = paired_comparison(a, b, clusters=clusters, n_boot=100, n_perm=200)
+    assert res.n_clusters == 4
+    assert res.cluster_permutation_p is not None
+    assert res.cluster_permutation_p >= 2 / 16
+    assert res.to_dict()["n_clusters"] == 4
