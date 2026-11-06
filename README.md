@@ -371,7 +371,9 @@ python -c "import json,sys,collections;c=collections.Counter(json.loads(l)['item
   with 20 unequal clusters. Wild cluster bootstrap and small-sample corrections
   beyond `t(G - 1)` are not implemented.
 - The cluster bootstrap resamples whole clusters and takes a ratio of sums;
-  with one cluster holding nearly half the items its intervals are lopsided.
+  with one cluster holding nearly half the items its intervals are lopsided:
+  `evalstats summary F --cluster-by-prefix --method bca` gives 65.6 to 75.4
+  around 71.8 for v1.17.2_gpt-5.2.
 - `power` assumes the observed discordance and design effect carry over to the
   new items; it is a planning aid, not a guarantee.
 - Pairwise tests in the leaderboard use only the items both models were scored
