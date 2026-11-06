@@ -8,7 +8,7 @@ import numpy as np
 from numpy.typing import ArrayLike
 from scipy import stats
 
-from evalstats.intervals import Interval, Method, mean_interval
+from evalstats.intervals import Interval, Method, finite_array, mean_interval
 
 
 @dataclass(frozen=True)
@@ -82,7 +82,7 @@ def sign_flip_test(diffs: ArrayLike, *, n_perm: int = 10000, seed: int | None = 
     so the mean difference is compared with the distribution obtained by
     flipping signs at random. Returns ``(count + 1) / (n_perm + 1)``.
     """
-    d = np.asarray(diffs, dtype=float).ravel()
+    d = finite_array(diffs, "scores")
     if d.size == 0:
         raise ValueError("no differences")
     observed = abs(d.mean())
@@ -114,7 +114,7 @@ def cluster_sign_flip_test(
     With ``G`` clusters the smallest attainable p-value is ``2 / 2**G``, so a
     handful of clusters cannot give a small p-value whatever the data.
     """
-    d = np.asarray(diffs, dtype=float).ravel()
+    d = finite_array(diffs, "scores")
     c = np.asarray(clusters).ravel()
     if d.size == 0 or c.size != d.size:
         raise ValueError("differences and clusters must align and be non-empty")
@@ -156,8 +156,8 @@ def paired_comparison(
     given). The McNemar test is run only when both vectors are binary; the
     cluster sign-flip test only when ``clusters`` is given.
     """
-    a = np.asarray(a, dtype=float).ravel()
-    b = np.asarray(b, dtype=float).ravel()
+    a = finite_array(a)
+    b = finite_array(b)
     if a.shape != b.shape:
         raise ValueError("score vectors must have the same length")
     d = a - b

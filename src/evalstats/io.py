@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import csv
 import json
+import math
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -31,9 +32,12 @@ def _number(row: dict, key: str, kind: type, where: str):
     if v in (None, ""):
         return None
     try:
-        return kind(v)
-    except (TypeError, ValueError):
+        out = kind(v)
+    except (TypeError, ValueError, OverflowError):
         raise ValueError(f"{where}: column {key!r} is not a number: {v!r}") from None
+    if not math.isfinite(out):
+        raise ValueError(f"{where}: column {key!r} is not a finite number: {v!r}")
+    return out
 
 
 def _coerce(row: object, where: str) -> Record:

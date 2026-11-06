@@ -38,8 +38,20 @@ class Interval:
         }
 
 
+def finite_array(values: ArrayLike, what: str = "scores") -> np.ndarray:
+    """``values`` as a flat float array; raise ``ValueError`` on NaN or inf.
+
+    A NaN compares false with everything, so a single one would silently
+    turn a permutation count into zero and a p-value into its minimum.
+    """
+    x = np.asarray(values, dtype=float).ravel()
+    if not np.isfinite(x).all():
+        raise ValueError(f"{what} must be finite")
+    return x
+
+
 def _as_array(scores: ArrayLike) -> np.ndarray:
-    x = np.asarray(scores, dtype=float).ravel()
+    x = finite_array(scores)
     if x.size == 0:
         raise ValueError("no scores")
     return x

@@ -16,7 +16,7 @@ import numpy as np
 from numpy.typing import ArrayLike
 from scipy import stats
 
-from evalstats.intervals import standard_error
+from evalstats.intervals import finite_array, standard_error
 
 
 @dataclass(frozen=True)
@@ -135,8 +135,8 @@ def plan_from_scores(
     so clustering never makes the plan more optimistic than independent
     items would.
     """
-    a = np.asarray(a, dtype=float).ravel()
-    b = np.asarray(b, dtype=float).ravel()
+    a = finite_array(a)
+    b = finite_array(b)
     if a.shape != b.shape or a.size < 2:
         raise ValueError("need two aligned score vectors with at least two items")
     d = a - b
