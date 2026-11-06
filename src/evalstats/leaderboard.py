@@ -6,15 +6,16 @@ from dataclasses import dataclass
 from itertools import combinations
 
 import numpy as np
+from numpy.typing import ArrayLike
 
-from evalstats.intervals import Interval, mean_interval
+from evalstats.intervals import Interval, Method, mean_interval
 from evalstats.io import ModelScores, align
 from evalstats.paired import cluster_sign_flip_test, is_binary, mcnemar_exact, sign_flip_test
 
 TESTS = ("auto", "mcnemar", "sign-flip", "cluster")
 
 
-def holm(p_values) -> np.ndarray:
+def holm(p_values: ArrayLike) -> np.ndarray:
     """Holm step-down adjusted p-values (control the family-wise error rate).
 
     Sort the ``m`` p-values; the ``i``-th smallest is multiplied by
@@ -33,7 +34,7 @@ def holm(p_values) -> np.ndarray:
     return out
 
 
-def benjamini_hochberg(p_values) -> np.ndarray:
+def benjamini_hochberg(p_values: ArrayLike) -> np.ndarray:
     """Benjamini-Hochberg adjusted p-values (control the false discovery rate).
 
     Sort the ``m`` p-values; the ``i``-th smallest (``i`` from 1) is
@@ -112,7 +113,7 @@ def leaderboard(
     models: dict[str, ModelScores],
     *,
     level: float = 0.95,
-    method: str = "clt",
+    method: Method = "clt",
     n_boot: int = 2000,
     n_perm: int = 10000,
     seed: int | None = 0,

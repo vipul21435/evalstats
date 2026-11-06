@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
+from numpy.typing import ArrayLike
 from scipy import stats
 
 Method = Literal["clt", "percentile", "bca"]
@@ -37,14 +38,14 @@ class Interval:
         }
 
 
-def _as_array(scores) -> np.ndarray:
+def _as_array(scores: ArrayLike) -> np.ndarray:
     x = np.asarray(scores, dtype=float).ravel()
     if x.size == 0:
         raise ValueError("no scores")
     return x
 
 
-def standard_error(scores, clusters=None) -> float:
+def standard_error(scores: ArrayLike, clusters: ArrayLike | None = None) -> float:
     """Standard error of the mean, cluster-robust when ``clusters`` is given.
 
     With clusters the estimator is the usual sandwich form: the variance of
@@ -89,11 +90,11 @@ def critical_value(level: float, n_clusters: int | None = None) -> float:
 
 
 def mean_interval(
-    scores,
+    scores: ArrayLike,
     *,
     level: float = 0.95,
     method: Method = "clt",
-    clusters=None,
+    clusters: ArrayLike | None = None,
     n_boot: int = 2000,
     seed: int | None = 0,
 ) -> Interval:

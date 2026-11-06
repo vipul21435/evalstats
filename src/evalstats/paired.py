@@ -5,9 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+from numpy.typing import ArrayLike
 from scipy import stats
 
-from evalstats.intervals import Interval, mean_interval
+from evalstats.intervals import Interval, Method, mean_interval
 
 
 @dataclass(frozen=True)
@@ -56,7 +57,7 @@ class PairedResult:
         }
 
 
-def mcnemar_exact(a, b) -> McNemar:
+def mcnemar_exact(a: ArrayLike, b: ArrayLike) -> McNemar:
     """Two-sided exact McNemar test for binary scores ``a`` and ``b``."""
     a = np.asarray(a, dtype=float).ravel()
     b = np.asarray(b, dtype=float).ravel()
@@ -74,7 +75,7 @@ def mcnemar_exact(a, b) -> McNemar:
     return McNemar(n_b, n_c, float(p))
 
 
-def sign_flip_test(diffs, *, n_perm: int = 10000, seed: int | None = 0) -> float:
+def sign_flip_test(diffs: ArrayLike, *, n_perm: int = 10000, seed: int | None = 0) -> float:
     """Two-sided sign-flip permutation p-value for paired differences.
 
     Under the null each item's difference is as likely to have either sign,
@@ -93,7 +94,12 @@ def sign_flip_test(diffs, *, n_perm: int = 10000, seed: int | None = 0) -> float
 
 
 def cluster_sign_flip_test(
-    diffs, clusters, *, n_perm: int = 10000, max_exact: int = 16, seed: int | None = 0
+    diffs: ArrayLike,
+    clusters: ArrayLike,
+    *,
+    n_perm: int = 10000,
+    max_exact: int = 16,
+    seed: int | None = 0,
 ) -> float:
     """Two-sided sign-flip test that flips whole clusters at once.
 
@@ -128,17 +134,17 @@ def cluster_sign_flip_test(
     return (count + 1) / (n_perm + 1)
 
 
-def is_binary(x) -> bool:
+def is_binary(x: ArrayLike) -> bool:
     return bool(set(np.unique(np.asarray(x, dtype=float))) <= {0.0, 1.0})
 
 
 def paired_comparison(
-    a,
-    b,
+    a: ArrayLike,
+    b: ArrayLike,
     *,
     level: float = 0.95,
-    method: str = "clt",
-    clusters=None,
+    method: Method = "clt",
+    clusters: ArrayLike | None = None,
     n_boot: int = 2000,
     n_perm: int = 10000,
     seed: int | None = 0,
@@ -155,9 +161,7 @@ def paired_comparison(
     if a.shape != b.shape:
         raise ValueError("score vectors must have the same length")
     d = a - b
-    diff = mean_interval(
-        d, level=level, method=method, clusters=clusters, n_boot=n_boot, seed=seed
-    )
+    diff = mean_interval(d, level=level, method=method, clusters=clusters, n_boot=n_boot, seed=seed)
     perm_p = sign_flip_test(d, n_perm=n_perm, seed=seed)
     mc = mcnemar_exact(a, b) if is_binary(a) and is_binary(b) else None
     cl_p = None
@@ -165,6 +169,4 @@ def paired_comparison(
     if clusters is not None:
         cl_p = cluster_sign_flip_test(d, clusters, n_perm=n_perm, seed=seed)
         n_cl = int(np.unique(np.asarray(clusters)).size)
-    return PairedResult(
-        int(a.size), float(a.mean()), float(b.mean()), diff, perm_p, mc, cl_p, n_cl
-    )
+    return PairedResult(int(a.size), float(a.mean()), float(b.mean()), diff, perm_p, mc, cl_p, n_cl)

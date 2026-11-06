@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+from numpy.typing import ArrayLike
 
 from evalstats.intervals import Interval
 
@@ -26,8 +27,8 @@ def pass_at_k_item(n: int, c: int, k: int) -> float:
 
 
 def pass_at_k(
-    n_samples,
-    n_correct,
+    n_samples: ArrayLike,
+    n_correct: ArrayLike,
     k: int,
     *,
     level: float = 0.95,

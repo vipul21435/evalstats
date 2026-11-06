@@ -13,6 +13,7 @@ import math
 from dataclasses import dataclass
 
 import numpy as np
+from numpy.typing import ArrayLike
 from scipy import stats
 
 from evalstats.intervals import standard_error
@@ -113,11 +114,11 @@ def detectable_difference(n: int, sd: float, *, alpha: float = 0.05, power: floa
 
 
 def plan_from_scores(
-    a,
-    b,
+    a: ArrayLike,
+    b: ArrayLike,
     delta: float,
     *,
-    clusters=None,
+    clusters: ArrayLike | None = None,
     alpha: float = 0.05,
     power: float = 0.8,
 ) -> PowerPlan:
@@ -158,6 +159,4 @@ def plan_from_scores(
     sd_eff = sd * math.sqrt(inflation)
     pw = power_for_items(n_obs, delta, sd_eff, alpha=alpha) if sd_eff > 0 else None
     mdd = detectable_difference(n_obs, sd_eff, alpha=alpha, power=power) if sd_eff > 0 else None
-    return PowerPlan(
-        delta, alpha, power, disc, sd, deff, n_plain, n_cl, n_obs, pw, mdd
-    )
+    return PowerPlan(delta, alpha, power, disc, sd, deff, n_plain, n_cl, n_obs, pw, mdd)
