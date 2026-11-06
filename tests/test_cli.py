@@ -85,6 +85,7 @@ def test_compare_markdown_and_json(tmp_path, capsys):
     assert main(args) == 0
     out = capsys.readouterr().out
     assert "shared items: 40" in out and "McNemar exact" in out
+    assert "difference (alpha - beta)" in out and "alpha-only" in out and "beta-only" in out
     assert main([*args, "--json", "--method", "percentile", "--n-boot", "200"]) == 0
     data = json.loads(capsys.readouterr().out)
     assert data["n"] == 40 and data["mcnemar"]["discordant"] > 0
@@ -255,3 +256,23 @@ def test_out_of_range_flags_are_usage_errors(argv, capsys):
         main(argv)
     assert exc.value.code == 2
     assert "Traceback" not in capsys.readouterr().err
+
+
+def test_summary_with_one_item_prints_dashes(tmp_path, capsys):
+    p = tmp_path / "one.jsonl"
+    p.write_text(
+        '{"item": "x", "model": "a", "score": 1}\n'
+        '{"item": "x", "model": "b", "score": 0}\n'
+        '{"item": "y", "model": "b", "score": 1}\n',
+        encoding="utf-8",
+    )
+    assert main(["summary", str(p)]) == 0
+    out = capsys.readouterr().out
+    assert "| a | 1 | - | 100.0 | - | - | clt |" in out
+    assert "nan" not in out and "fewer than 2 items" in out
+
+
+def test_help_has_no_markup(capsys):
+    with pytest.raises(SystemExit):
+        main(["--help"])
+    assert "``" not in capsys.readouterr().out

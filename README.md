@@ -68,9 +68,9 @@ $ evalstats compare examples/results.jsonl --a a --b c
 shared items: 120
 a: 43.3 %
 c: 46.7 %
-difference (a - b): -3.3 points, 95% interval [-15.4, 8.7] (clt)
+difference (a - c): -3.3 points, 95% interval [-15.4, 8.7] (clt)
 sign-flip permutation p: 0.6860
-McNemar exact: a-only 25, b-only 29, discordant 54, p = 0.6835
+McNemar exact: a-only 25, c-only 29, discordant 54, p = 0.6835
 ```
 
 `b` beats `a` by 5 points on 6 discordant items, all in the same direction: the
@@ -266,10 +266,10 @@ $ evalstats compare F --a mini-v2.0.0_gemini-3-flash-high --b mini-v2.0.0_glm-5-
 shared items: 500
 mini-v2.0.0_gemini-3-flash-high: 75.8 %
 mini-v2.0.0_glm-5-high: 72.8 %
-difference (a - b): 3.0 points, 95% interval [-0.2, 6.2] (clt)
+difference (mini-v2.0.0_gemini-3-flash-high - mini-v2.0.0_glm-5-high): 3.0 points, 95% interval [-0.2, 6.2] (clt)
 sign-flip permutation p: 0.0673
 cluster sign-flip p (12 clusters): 0.1133
-McNemar exact: a-only 36, b-only 21, discordant 57, p = 0.0627
+McNemar exact: mini-v2.0.0_gemini-3-flash-high-only 36, mini-v2.0.0_glm-5-high-only 21, discordant 57, p = 0.0627
 ```
 
 The two models disagree on 57 of 500 items and split them 36 to 21. That is

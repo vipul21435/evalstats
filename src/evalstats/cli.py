@@ -11,6 +11,7 @@ report to a file instead of stdout.
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -32,6 +33,14 @@ from evalstats.report import (
     render_markdown,
     report_json,
     to_json,
+)
+
+DESCRIPTION = (
+    "Error bars and paired comparisons for per-item evaluation results. "
+    "Commands: summary (one interval per model), compare (two models on shared items), "
+    "leaderboard (every pair with Holm and Benjamini-Hochberg corrections), "
+    "report (all of it plus power plans), power (items needed to detect a difference) "
+    "and passk. Output is Markdown, or JSON with --json."
 )
 
 
@@ -95,7 +104,7 @@ def _common(p: argparse.ArgumentParser) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="evalstats", description=__doc__)
+    parser = argparse.ArgumentParser(prog="evalstats", description=DESCRIPTION)
     parser.add_argument("--version", action="version", version=f"evalstats {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -195,6 +204,10 @@ def _interval_rows(models, args):
     return rows
 
 
+def _bound(x: float) -> str:
+    return "-" if math.isnan(x) else pct(x)
+
+
 def _interval_table(rows, level: float) -> str:
     lvl = int(round(100 * level))
     table = [
@@ -203,15 +216,21 @@ def _interval_table(rows, level: float) -> str:
             r["n"],
             "-" if r["n_clusters"] is None else r["n_clusters"],
             pct(r["estimate"]),
-            pct(r["low"]),
-            pct(r["high"]),
+            _bound(r["low"]),
+            _bound(r["high"]),
             r["method"],
         ]
         for r in rows
     ]
-    return markdown_table(
+    text = markdown_table(
         ["model", "n", "clusters", "mean %", f"{lvl}% low", f"{lvl}% high", "method"], table
     )
+    if any(math.isnan(r["low"]) or math.isnan(r["high"]) for r in rows):
+        text += (
+            "\n\nA bound shown as - means fewer than 2 items (or 2 clusters) "
+            "to estimate the spread."
+        )
+    return text
 
 
 def cmd_summary(args: argparse.Namespace) -> int:
@@ -257,7 +276,7 @@ def cmd_compare(args: argparse.Namespace) -> int:
         f"shared items: {res.n}",
         f"{args.a}: {pct(res.mean_a)} %",
         f"{args.b}: {pct(res.mean_b)} %",
-        f"difference (a - b): {pct(d.estimate)} points, "
+        f"difference ({args.a} - {args.b}): {pct(d.estimate)} points, "
         f"{lvl}% interval [{pct(d.low)}, {pct(d.high)}] ({d.method})",
         f"sign-flip permutation p: {p_value(res.permutation_p)}",
     ]
@@ -268,7 +287,7 @@ def cmd_compare(args: argparse.Namespace) -> int:
     if res.mcnemar is not None:
         mc = res.mcnemar
         lines.append(
-            f"McNemar exact: a-only {mc.b}, b-only {mc.c}, "
+            f"McNemar exact: {args.a}-only {mc.b}, {args.b}-only {mc.c}, "
             f"discordant {mc.discordant}, p = {p_value(mc.p_value)}"
         )
     emit("\n".join(lines), args.out)
