@@ -173,10 +173,13 @@ def mean_interval(
     if bounds is None:
         return iv
     lo_b, hi_b = bounds
-    low = max(iv.low, lo_b) if not math.isnan(iv.low) else iv.low
-    high = min(iv.high, hi_b) if not math.isnan(iv.high) else iv.high
-    if low == iv.low and high == iv.high:
+    # a missing (NaN) bound has nothing to clip
+    moved_low = not math.isnan(iv.low) and iv.low < lo_b
+    moved_high = not math.isnan(iv.high) and iv.high > hi_b
+    if not (moved_low or moved_high):
         return iv
+    low = lo_b if moved_low else iv.low
+    high = hi_b if moved_high else iv.high
     return replace(iv, low=low, high=high, clipped=True)
 
 

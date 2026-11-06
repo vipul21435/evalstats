@@ -48,3 +48,16 @@ def test_cli_notes_clipped_bounds(tmp_path, capsys):
     assert main(["compare", str(q), "--a", "a", "--b", "b"]) == 0
     out = capsys.readouterr().out
     assert "[-100.0, 100.0]" in out and "clipped" in out
+
+
+def test_missing_bounds_are_not_marked_clipped(tmp_path, capsys):
+    for method in ("clt", "percentile", "bca"):
+        iv = mean_interval([1.0], method=method, bounds=(0.0, 1.0))
+        assert np.isnan(iv.low) and not iv.clipped
+        one_cluster = mean_interval([1.0, 0.0], method=method, clusters=["r", "r"], bounds=(0, 1))
+        assert not one_cluster.clipped
+    path = tmp_path / "one.csv"
+    path.write_text("item,model,score\nq1,m,1\n")
+    assert main(["summary", str(path), "--method", "bca"]) == 0
+    out = capsys.readouterr().out
+    assert "fewer than 2 items" in out and "clipped" not in out
